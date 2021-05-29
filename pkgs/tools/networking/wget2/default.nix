@@ -28,25 +28,20 @@
 
 stdenv.mkDerivation rec {
   pname = "wget2";
-  version = "1.99.2";
+  version = "1.99.2.1";
 
   src = fetchFromGitLab {
     owner = "gnuwget";
     repo = pname;
-    rev = version;
-    sha256 = "1gws8y3z8xzi46c48n7jb162mr3ar4c34s7yy8kjcs14yzq951qz";
+    rev = "f1650988e31db8ff50a408990d08d4c349b7eadb";
+    sha256 = "071gb4chm07w347llv9g92035whxj5d1gqmdnspg35gxbi4ncl9w";
   };
 
   patches = [
     (fetchpatch {
-      name = "fix-autotools-2.70.patch";
-      url = "https://gitlab.com/gnuwget/wget2/-/commit/580af869093cfda6bc8a9d5901850354a16b3666.patch";
-      sha256 = "1x6wq4wxvvy6174d52qrhxkcgmv366f8smxyki49zb6rs4gqhskd";
-    })
-    (fetchpatch {
-      name = "update-potfiles-for-gnulib-2020-11-28.patch";
-      url = "https://gitlab.com/gnuwget/wget2/-/commit/368deb9fcca0c281f9c76333607cc878c3945ad0.patch";
-      sha256 = "1qsz8hbzbgg14wikxsbjjlq0cp3jw4pajbaz9wdn6ny617hdvi8y";
+      name = "fix-buffer-overflow.patch";
+      url = "https://gitlab.com/moben/wget2/-/commit/ffa0b0ccc26168b1737cae7f0ad461f0f70a62e2.patch";
+      sha256 = "1b50k7nnpwg947jbkjhhsmf772p3s4isrygr1k0vmam4lw2yw0ng";
     })
   ];
 
