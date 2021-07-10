@@ -160,7 +160,7 @@ in buildFHSUserEnv rec {
     xorg.libXdamage
     xorg.libxshmfence
     xorg.libXxf86vm
-    llvm_11.lib
+    llvmPackages_latest.llvm.lib # LLVM must match version required by Mesa
     libelf
   ] ++ (if (!nativeOnly) then [
     (steamPackages.steam-runtime-wrapped.override {
