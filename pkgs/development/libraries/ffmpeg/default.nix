@@ -66,8 +66,8 @@ rec {
     version = "7.1.1.20250504";
     source = fetchgit {
       url = "https://git.ffmpeg.org/ffmpeg.git";
-      rev = "1dbc5675c18d34c6e3e32be38f3cd1f4fb9f0257";
-      hash = "sha256-qm98xMHlJuSW4xNTX+Kypi3kE5eAm3pl/oHs/oaSrcE=";
+      rev = "56b85b689dcfcf76792860fdf75ae65e2b739e30";
+      hash = "sha256-3TFZmDjNiPmd5CpJ9kxha5YKxBRbwPbpxzvhXrmUVnc=";
     };
     withUnfree = true;
     withPlacebo = false;
