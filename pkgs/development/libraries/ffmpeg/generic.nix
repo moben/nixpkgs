@@ -502,7 +502,6 @@ stdenv.mkDerivation (
       ]
       ++ optionals (lib.versionAtLeast version "7.1.1.20250606") [
         ./mps212.patch
-      ]
       ];
 
     configurePlatforms = [ ];
