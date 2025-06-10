@@ -98,6 +98,7 @@
   withLcevcdec ? withFullDeps && lib.versionAtLeast version "7.1", # LCEVC decoding
   withLcms2 ? withFullDeps, # ICC profile support via lcms2
   withLzma ? withHeadlessDeps, # xz-utils
+  withNasm ? withSmallDeps && stdenv.hostPlatform.isLinux, # x86 asm
   withMetal ? false, # Unfree and requires manual downloading of files
   withMfx ? withFullDeps && (with stdenv.hostPlatform; isLinux && !isAarch), # Hardware acceleration via intel-media-sdk/libmfx
   withModplug ? withFullDeps && !stdenv.hostPlatform.isDarwin, # ModPlug support
@@ -305,6 +306,7 @@
   libXext,
   libxml2,
   libXv,
+  nasm,
   nv-codec-headers,
   nv-codec-headers-12,
   ocl-icd, # OpenCL ICD
@@ -682,6 +684,9 @@ stdenv.mkDerivation (
         (enableFeature withQrencode "libqrencode")
         (enableFeature withQuirc "libquirc")
       ]
+      ++ optionals (versionAtLeast version "7.1.1.20250504") [
+        (enableFeature withNasm "x86asm")
+      ]
       ++ [
         (enableFeature withRav1e "librav1e")
         (enableFeature withRist "librist")
@@ -789,6 +794,7 @@ stdenv.mkDerivation (
         pkg-config
         yasm
       ]
+      ++ optionals ( (versionAtLeast version "7.1.1.20250504") && withNasm ) [ nasm ]
       # Texinfo version 7.1 introduced breaking changes, which older versions of ffmpeg do not handle.
       ++ (if versionOlder version "5" then [ texinfo6 ] else [ texinfo ])
       ++ optionals withCudaLLVM [ clang ]

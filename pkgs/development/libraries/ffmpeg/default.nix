@@ -1,5 +1,6 @@
 {
   callPackage,
+  fetchgit,
   darwin,
   cudaPackages,
 }:
@@ -60,4 +61,16 @@ rec {
   ffmpeg = ffmpeg_7;
   ffmpeg-headless = ffmpeg_7-headless;
   ffmpeg-full = ffmpeg_7-full;
+
+  ffmpeg-custom = mkFFmpeg {
+    version = "7.1.1.20250504";
+    source = fetchgit {
+      url = "https://git.ffmpeg.org/ffmpeg.git";
+      rev = "1dbc5675c18d34c6e3e32be38f3cd1f4fb9f0257";
+      hash = "sha256-qm98xMHlJuSW4xNTX+Kypi3kE5eAm3pl/oHs/oaSrcE=";
+    };
+    withUnfree = true;
+    withPlacebo = false;
+    withAmf = false;
+  } "full";
 }
