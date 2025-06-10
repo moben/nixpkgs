@@ -499,6 +499,9 @@ stdenv.mkDerivation (
           url = "https://gitlab.archlinux.org/archlinux/packaging/packages/ffmpeg/-/raw/a02c1a15706ea832c0d52a4d66be8fb29499801a/add-av_stream_get_first_dts-for-chromium.patch";
           hash = "sha256-DbH6ieJwDwTjKOdQ04xvRcSLeeLP2Z2qEmqeo8HsPr4=";
         })
+      ++ optionals (lib.versionAtLeast version "7.1.1.20250606") [
+        ./mps212.patch
+      ]
       ];
 
     configurePlatforms = [ ];

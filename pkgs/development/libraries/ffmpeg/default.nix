@@ -63,11 +63,11 @@ rec {
   ffmpeg-full = ffmpeg_7-full;
 
   ffmpeg-custom = mkFFmpeg {
-    version = "7.1.1.20250524";
+    version = "7.1.1.20250606";
     source = fetchgit {
       url = "https://git.ffmpeg.org/ffmpeg.git";
-      rev = "56b85b689dcfcf76792860fdf75ae65e2b739e30";
-      hash = "sha256-3TFZmDjNiPmd5CpJ9kxha5YKxBRbwPbpxzvhXrmUVnc=";
+      rev = "5fea5e3e11d6ff425db48f44489916399822aece";
+      hash = "sha256-H4gUkGgHTEs8AF9/Ax+uOQJrMcDVJSsay5x4JfYsL2Q=";
     };
     withUnfree = true;
     withPlacebo = false;

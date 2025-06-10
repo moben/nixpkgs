@@ -1,0 +1,1938 @@
+https://ffmpeg.org/pipermail/ffmpeg-devel/2025-May/343168.html
+---
+ libavcodec/aac/aacdec_tab.c |   54 ++
+ libavcodec/aactab.c         | 1820 +++++++++++++++++++++++++++++++++++
+ libavcodec/aactab.h         |   20 +
+ 3 files changed, 1894 insertions(+)
+
+diff --git a/libavcodec/aac/aacdec_tab.c b/libavcodec/aac/aacdec_tab.c
+index 45a84a9a72..5ba20c0d8a 100644
+--- a/libavcodec/aac/aacdec_tab.c
++++ b/libavcodec/aac/aacdec_tab.c
+@@ -111,6 +111,16 @@ const AVChannelLayout ff_aac_ch_layout[] = {
+ VLCElem ff_vlc_scalefactors[352];
+ const VLCElem *ff_vlc_spectral[11];
+ 
++const VLCElem *ff_vlc_cld_lav3_2D[2][2];
++const VLCElem *ff_vlc_cld_lav5_2D[2][2];
++const VLCElem *ff_vlc_cld_lav7_2D[2][2];
++const VLCElem *ff_vlc_cld_lav9_2D[2][2];
++
++const VLCElem *ff_vlc_icc_lav1_2D[2][2];
++const VLCElem *ff_vlc_icc_lav3_2D[2][2];
++const VLCElem *ff_vlc_icc_lav5_2D[2][2];
++const VLCElem *ff_vlc_icc_lav7_2D[2][2];
++
+ /// Huffman tables for SBR
+ 
+ static const uint8_t sbr_huffman_tab[][2] = {
+@@ -279,6 +289,50 @@ static av_cold void aacdec_common_init(void)
+                                       0);
+     }
+ 
++#define LAV_N_PAIR(NAME, NB) \
++    ff_vlc_ ## NAME[0][0] = ff_vlc_init_tables(&state, NB, NB, \
++                                               ff_aac_ ## NAME ## _0_0_bits, \
++                                               sizeof(ff_aac_ ## NAME ## _0_0_bits), \
++                                               sizeof(ff_aac_ ## NAME ## _0_0_bits), \
++                                               ff_aac_ ## NAME ## _0_0_codes, \
++                                               sizeof(ff_aac_ ## NAME ## _0_0_codes), \
++                                               sizeof(ff_aac_ ## NAME ## _0_0_codes), \
++                                               0); \
++    ff_vlc_ ## NAME[0][1] = ff_vlc_init_tables(&state, NB, NB, \
++                                               ff_aac_ ## NAME ## _0_1_bits, \
++                                               sizeof(ff_aac_ ## NAME ## _0_1_bits), \
++                                               sizeof(ff_aac_ ## NAME ## _0_1_bits), \
++                                               ff_aac_ ## NAME ## _0_1_codes, \
++                                               sizeof(ff_aac_ ## NAME ## _0_1_codes), \
++                                               sizeof(ff_aac_ ## NAME ## _0_1_codes), \
++                                               0); \
++    ff_vlc_ ## NAME[1][0] = ff_vlc_init_tables(&state, NB, NB, \
++                                               ff_aac_ ## NAME ## _1_0_bits, \
++                                               sizeof(ff_aac_ ## NAME ## _1_0_bits), \
++                                               sizeof(ff_aac_ ## NAME ## _1_0_bits), \
++                                               ff_aac_ ## NAME ## _1_0_codes, \
++                                               sizeof(ff_aac_ ## NAME ## _1_0_codes), \
++                                               sizeof(ff_aac_ ## NAME ## _1_0_codes), \
++                                               0); \
++    ff_vlc_ ## NAME[1][1] = ff_vlc_init_tables(&state, NB, NB, \
++                                               ff_aac_ ## NAME ## _1_1_bits, \
++                                               sizeof(ff_aac_ ## NAME ## _1_1_bits), \
++                                               sizeof(ff_aac_ ## NAME ## _1_1_bits), \
++                                               ff_aac_ ## NAME ## _1_1_codes, \
++                                               sizeof(ff_aac_ ## NAME ## _1_1_codes), \
++                                               sizeof(ff_aac_ ## NAME ## _1_1_codes), \
++                                               0);
++
++    LAV_N_PAIR(icc_lav1_2D, 8)
++    LAV_N_PAIR(icc_lav3_2D, 8)
++    LAV_N_PAIR(icc_lav5_2D, 8)
++    LAV_N_PAIR(icc_lav7_2D, 8)
++
++    LAV_N_PAIR(cld_lav3_2D, 8)
++    LAV_N_PAIR(cld_lav5_2D, 8)
++    LAV_N_PAIR(cld_lav7_2D, 8)
++    LAV_N_PAIR(cld_lav9_2D, 8)
++
+     VLC_INIT_STATIC_TABLE(ff_vlc_scalefactors, 7,
+                           FF_ARRAY_ELEMS(ff_aac_scalefactor_code),
+                           ff_aac_scalefactor_bits,
+diff --git a/libavcodec/aactab.c b/libavcodec/aactab.c
+index 128bacfdf1..43852897ba 100644
+--- a/libavcodec/aactab.c
++++ b/libavcodec/aactab.c
+@@ -3901,3 +3901,1823 @@ const float ff_aac_usac_mdst_filt_cur[4 /* Window */][4 /* Shape */][7] =
+       { 0.207421,  0.001416,  0.635010, 0.000000, -0.635010, -0.001416, -0.207421 },
+       { 0.207421, -0.001416,  0.635010, 0.000000, -0.635010,  0.001416, -0.207421 } }
+ };
++
++static const uint32_t firstband_cld_ipd_codes[8] = {
++    0x00, 0x06, 0x1c, 0x3e, 0x1d, 0x3f, 0x1e, 0x02
++};
++
++static const uint8_t firstband_cld_ipd_bits[8] = {
++    1, 3, 5, 6, 5, 6, 5, 2
++};
++
++static const uint32_t ipd_1d_df_codes[8] = {
++    0x00, 0x06, 0x1e, 0x3a, 0x3b, 0x1c, 0x1f, 0x02
++};
++
++static const uint8_t ipd_1d_df_bits[8] = {
++    1, 3, 5, 6, 6, 5, 5, 2
++};
++
++static const uint32_t ipd_1d_dt_codes[8] = {
++    0x00, 0x02, 0x0e, 0x3e, 0x7e, 0x7f, 0x1e, 0x06
++};
++
++static const uint8_t ipd_1d_dt_bits[8] = {
++    1, 2, 4, 6, 7, 7, 5, 3
++};
++
++static const uint32_t ipd_2d_df_esc_codes[4] = { /* LL/Lav 01, 03, 05, 07 */
++    0x00007, 0x000ff, 0x001bf, 0x0057f
++};
++
++static const uint8_t ipd_2d_df_esc_bits[4] = {
++    3, 8, 9, 11
++};
++
++static const uint32_t ipd_2d_dt_esc_codes[4] = { /* LL/Lav 01, 03, 05, 07 */
++    0x00007, 0x000bf, 0x005ff, 0x01fbf
++};
++
++static const uint8_t ipd_2d_dt_esc_bits[4] = {
++    3, 8, 11, 13
++};
++
++/* cld_1D*/
++static const uint8_t cld_1D_0_bits[31] = {
++    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 15, 16,
++    16, 17, 17, 18, 18, 19, 18, 20, 21, 24, 24, 24, 24, 23, 23
++};
++
++static const uint32_t cld_1D_0_codes[31] = {
++    0x00000000, 0x00000002, 0x00000006, 0x0000000e, 0x0000001e, 0x0000003e, 0x0000007e, 0x000000fe,
++    0x000001fe, 0x000003fe, 0x000007fe, 0x00000ffe, 0x00001ffe, 0x00007ffe, 0x00007ffc, 0x0000fffe,
++    0x0000fffa, 0x0001fffe, 0x0001fff6, 0x0003fffe, 0x0003ffff, 0x0007ffde, 0x0003ffee, 0x000fffbe,
++    0x001fff7e, 0x00fffbfc, 0x00fffbfd, 0x00fffbfe, 0x00fffbff, 0x007ffdfc, 0x007ffdfd
++};
++
++static const uint8_t cld_1D_1_bits[31] = {
++    1, 2, 3, 4, 5, 6, 7, 9, 9, 10, 10, 11, 11, 12, 12, 13,
++    13, 14, 14, 14, 15, 16, 17, 19, 19, 20, 21, 21, 21, 21, 20
++};
++
++static const uint32_t cld_1D_1_codes[31] = {
++    0x00000000, 0x00000002, 0x00000006, 0x0000000e, 0x0000001e, 0x0000003e, 0x0000007e, 0x000001fe,
++    0x000001fc, 0x000003fe, 0x000003fa, 0x000007fe, 0x000007f6, 0x00000ffe, 0x00000fee, 0x00001ffe,
++    0x00001fde, 0x00003ffe, 0x00003fbe, 0x00003fbf, 0x00007ffe, 0x0000fffe, 0x0001fffe, 0x0007fffe,
++    0x0007fffc, 0x000ffffa, 0x001ffffc, 0x001ffffd, 0x001ffffe, 0x001fffff, 0x000ffffb
++};
++
++/* cld_lav3_2D_0_0*/
++static const uint8_t cld_lav3_2D_0_0_0_bits[4] = {
++    2, 3, 5, 8
++};
++
++static const uint32_t cld_lav3_2D_0_0_0_codes[4] = {
++    0x00000002, 0x00000002, 0x00000004, 0x0000003e
++};
++
++static const uint8_t cld_lav3_2D_0_0_1_bits[4] = {
++    4, 4, 6, 10
++};
++
++static const uint32_t cld_lav3_2D_0_0_1_codes[4] = {
++    0x00000006, 0x00000007, 0x0000000e, 0x000000fe
++};
++
++static const uint8_t cld_lav3_2D_0_0_2_bits[4] = {
++    9, 7, 6, 5
++};
++
++static const uint32_t cld_lav3_2D_0_0_2_codes[4] = {
++    0x0000007e, 0x0000001e, 0x0000000c, 0x00000005
++};
++
++static const uint8_t cld_lav3_2D_0_0_3_bits[4] = {
++    10, 6, 3, 2
++};
++
++static const uint32_t cld_lav3_2D_0_0_3_codes[4] = {
++    0x000000ff, 0x0000000d, 0x00000000, 0x00000003
++};
++
++/* cld_lav5_2D_0_0*/
++static const uint8_t cld_lav5_2D_0_0_0_bits[6] = {
++    3, 3, 5, 7, 8, 10
++};
++
++static const uint32_t cld_lav5_2D_0_0_0_codes[6] = {
++    0x00000002, 0x00000003, 0x00000010, 0x0000007c, 0x000000d6, 0x000003ee
++};
++
++static const uint8_t cld_lav5_2D_0_0_1_bits[6] = {
++    4, 4, 5, 6, 8, 13
++};
++
++static const uint32_t cld_lav5_2D_0_0_1_codes[6] = {
++    0x0000000a, 0x0000000c, 0x00000016, 0x00000034, 0x000000fe, 0x00001f7e
++};
++
++static const uint8_t cld_lav5_2D_0_0_2_bits[6] = {
++    7, 6, 6, 7, 9, 9
++};
++
++static const uint32_t cld_lav5_2D_0_0_2_codes[6] = {
++    0x0000007e, 0x00000036, 0x00000026, 0x00000046, 0x0000011e, 0x000001f6
++};
++
++static const uint8_t cld_lav5_2D_0_0_3_bits[6] = {
++    9, 8, 8, 8, 7, 7
++};
++
++static const uint32_t cld_lav5_2D_0_0_3_codes[6] = {
++    0x0000011f, 0x000000d7, 0x0000008e, 0x000000ff, 0x0000006a, 0x0000004e
++};
++
++static const uint8_t cld_lav5_2D_0_0_4_bits[6] = {
++    12, 11, 7, 6, 5, 5
++};
++
++static const uint32_t cld_lav5_2D_0_0_4_codes[6] = {
++    0x00000fbe, 0x000007de, 0x0000004f, 0x00000037, 0x00000017, 0x0000001e
++};
++
++static const uint8_t cld_lav5_2D_0_0_5_bits[6] = {
++    13, 8, 6, 5, 4, 2
++};
++
++static const uint32_t cld_lav5_2D_0_0_5_codes[6] = {
++    0x00001f7f, 0x000000fa, 0x00000022, 0x00000012, 0x0000000e, 0x00000000
++};
++
++/* cld_lav7_2D_0_0*/
++static const uint8_t cld_lav7_2D_0_0_0_bits[8] = {
++    4, 4, 5, 7, 8, 9, 9, 11
++};
++
++static const uint32_t cld_lav7_2D_0_0_0_codes[8] = {
++    0x0000000e, 0x0000000a, 0x0000000a, 0x0000007c, 0x000000be, 0x0000017a, 0x000000ee, 0x000007b6
++};
++
++static const uint8_t cld_lav7_2D_0_0_1_bits[8] = {
++    4, 4, 5, 6, 7, 7, 9, 15
++};
++
++static const uint32_t cld_lav7_2D_0_0_1_codes[8] = {
++    0x00000006, 0x0000000c, 0x00000016, 0x00000026, 0x0000003e, 0x0000002e, 0x000001ec, 0x000047ce
++};
++
++static const uint8_t cld_lav7_2D_0_0_2_bits[8] = {
++    6, 6, 6, 7, 7, 8, 12, 12
++};
++
++static const uint32_t cld_lav7_2D_0_0_2_codes[8] = {
++    0x00000016, 0x0000003c, 0x00000022, 0x0000004e, 0x0000003f, 0x0000005e, 0x000008fa, 0x000008fb
++};
++
++static const uint8_t cld_lav7_2D_0_0_3_bits[8] = {
++    8, 8, 8, 7, 9, 10, 10, 11
++};
++
++static const uint32_t cld_lav7_2D_0_0_3_codes[8] = {
++    0x0000005f, 0x000000fa, 0x000000bf, 0x0000003a, 0x000001f6, 0x000001de, 0x000003da, 0x000007b7
++};
++
++static const uint8_t cld_lav7_2D_0_0_4_bits[8] = {
++    10, 10, 9, 10, 9, 8, 9, 9
++};
++
++static const uint32_t cld_lav7_2D_0_0_4_codes[8] = {
++    0x000001df, 0x000003ee, 0x0000017b, 0x000003ef, 0x000001ee, 0x0000008e, 0x000001ef, 0x000001fe
++};
++
++static const uint8_t cld_lav7_2D_0_0_5_bits[8] = {
++    12, 11, 11, 8, 7, 7, 7, 7
++};
++
++static const uint32_t cld_lav7_2D_0_0_5_codes[8] = {
++    0x000008f8, 0x0000047e, 0x0000047f, 0x00000076, 0x0000003c, 0x00000046, 0x0000007a, 0x0000007e
++};
++
++static const uint8_t cld_lav7_2D_0_0_6_bits[8] = {
++    14, 13, 9, 7, 7, 6, 5, 4
++};
++
++static const uint32_t cld_lav7_2D_0_0_6_codes[8] = {
++    0x000023e6, 0x000011f2, 0x000001ff, 0x0000003d, 0x0000004f, 0x0000002e, 0x00000012, 0x00000004
++};
++
++static const uint8_t cld_lav7_2D_0_0_7_bits[8] = {
++    15, 9, 8, 8, 6, 5, 4, 2
++};
++
++static const uint32_t cld_lav7_2D_0_0_7_codes[8] = {
++    0x000047cf, 0x0000011e, 0x000000bc, 0x000000fe, 0x0000001c, 0x00000010, 0x0000000d, 0x00000000
++};
++
++/* cld_lav9_2D_0_0*/
++static const uint8_t cld_lav9_2D_0_0_0_bits[10] = {
++    4, 4, 5, 7, 7, 8, 9, 10, 10, 11
++};
++
++static const uint32_t cld_lav9_2D_0_0_0_codes[10] = {
++    0x00000006, 0x00000007, 0x00000006, 0x0000007e, 0x0000000a, 0x0000001e, 0x0000008a, 0x0000004e,
++    0x00000276, 0x000002e2
++};
++
++static const uint8_t cld_lav9_2D_0_0_1_bits[10] = {
++    4, 4, 5, 6, 7, 8, 8, 8, 9, 15
++};
++
++static const uint32_t cld_lav9_2D_0_0_1_codes[10] = {
++    0x00000000, 0x0000000a, 0x00000016, 0x00000026, 0x00000076, 0x000000f2, 0x00000012, 0x0000005e,
++    0x0000008b, 0x00002e76
++};
++
++static const uint8_t cld_lav9_2D_0_0_2_bits[10] = {
++    6, 5, 6, 7, 7, 8, 8, 9, 14, 14
++};
++
++static const uint32_t cld_lav9_2D_0_0_2_codes[10] = {
++    0x00000012, 0x00000007, 0x00000038, 0x0000007c, 0x00000008, 0x00000046, 0x000000f6, 0x000001ca,
++    0x0000173a, 0x00001738
++};
++
++static const uint8_t cld_lav9_2D_0_0_3_bits[10] = {
++    8, 7, 7, 7, 8, 8, 9, 11, 12, 12
++};
++
++static const uint32_t cld_lav9_2D_0_0_3_codes[10] = {
++    0x0000009e, 0x0000004a, 0x00000026, 0x0000000c, 0x0000004e, 0x000000f7, 0x0000013a, 0x0000009e,
++    0x000009fe, 0x0000013e
++};
++
++static const uint8_t cld_lav9_2D_0_0_4_bits[10] = {
++    9, 8, 9, 9, 8, 9, 10, 10, 11, 11
++};
++
++static const uint32_t cld_lav9_2D_0_0_4_codes[10] = {
++    0x00000026, 0x0000001a, 0x000001e6, 0x000001e2, 0x000000ee, 0x000001ce, 0x00000277, 0x000003ce,
++    0x000002e6, 0x000004fc
++};
++
++static const uint8_t cld_lav9_2D_0_0_5_bits[10] = {
++    11, 10, 10, 9, 9, 9, 8, 9, 9, 9
++};
++
++static const uint32_t cld_lav9_2D_0_0_5_codes[10] = {
++    0x000002e3, 0x00000170, 0x00000172, 0x000000ba, 0x0000003e, 0x000001e3, 0x0000001b, 0x0000003f,
++    0x0000009e, 0x0000009f
++};
++
++static const uint8_t cld_lav9_2D_0_0_6_bits[10] = {
++    13, 12, 11, 11, 9, 8, 8, 8, 8, 8
++};
++
++static const uint32_t cld_lav9_2D_0_0_6_codes[10] = {
++    0x00000b9e, 0x000009ff, 0x000004fd, 0x000004fe, 0x000001cf, 0x000000ef, 0x00000044, 0x0000005f,
++    0x000000e4, 0x000000f0
++};
++
++static const uint8_t cld_lav9_2D_0_0_7_bits[10] = {
++    15, 12, 13, 9, 8, 8, 7, 7, 6, 6
++};
++
++static const uint32_t cld_lav9_2D_0_0_7_codes[10] = {
++    0x00002e72, 0x0000013f, 0x00000b9f, 0x0000013e, 0x000000fe, 0x00000047, 0x0000000e, 0x0000007d,
++    0x00000010, 0x00000024
++};
++
++static const uint8_t cld_lav9_2D_0_0_8_bits[10] = {
++    15, 16, 9, 8, 8, 8, 7, 6, 5, 4
++};
++
++static const uint32_t cld_lav9_2D_0_0_8_codes[10] = {
++    0x00002e77, 0x00005ce6, 0x000000bb, 0x000000e6, 0x00000016, 0x000000ff, 0x0000007a, 0x0000003a,
++    0x00000017, 0x00000002
++};
++
++static const uint8_t cld_lav9_2D_0_0_9_bits[10] = {
++    16, 10, 8, 9, 8, 7, 6, 5, 4, 3
++};
++
++static const uint32_t cld_lav9_2D_0_0_9_codes[10] = {
++    0x00005ce7, 0x000003cf, 0x00000017, 0x000001cb, 0x0000009c, 0x0000004b, 0x00000016, 0x0000000a,
++    0x00000008, 0x00000006
++};
++
++/* cld_lav3_2D_0_1*/
++static const uint8_t cld_lav3_2D_0_1_0_bits[4] = {
++    1, 6, 11, 12
++};
++
++static const uint32_t cld_lav3_2D_0_1_0_codes[4] = {
++    0x00000000, 0x0000003e, 0x0000076e, 0x00000ede
++};
++
++static const uint8_t cld_lav3_2D_0_1_1_bits[4] = {
++    3, 6, 10, 6
++};
++
++static const uint32_t cld_lav3_2D_0_1_1_codes[4] = {
++    0x00000006, 0x0000003f, 0x000003b6, 0x0000003a
++};
++
++static const uint8_t cld_lav3_2D_0_1_2_bits[4] = {
++    5, 8, 9, 5
++};
++
++static const uint32_t cld_lav3_2D_0_1_2_codes[4] = {
++    0x0000001c, 0x000000ee, 0x000001da, 0x0000001e
++};
++
++static const uint8_t cld_lav3_2D_0_1_3_bits[4] = {
++    8, 12, 8, 2
++};
++
++static const uint32_t cld_lav3_2D_0_1_3_codes[4] = {
++    0x000000ef, 0x00000edf, 0x000000ec, 0x00000002
++};
++
++/* cld_lav5_2D_0_1*/
++static const uint8_t cld_lav5_2D_0_1_0_bits[6] = {
++    3, 5, 8, 12, 16, 17
++};
++
++static const uint32_t cld_lav5_2D_0_1_0_codes[6] = {
++    0x00000006, 0x0000001c, 0x0000007e, 0x00000efc, 0x0000effe, 0x0001dffe
++};
++
++static const uint8_t cld_lav5_2D_0_1_1_bits[6] = {
++    3, 4, 7, 12, 15, 7
++};
++
++static const uint32_t cld_lav5_2D_0_1_1_codes[6] = {
++    0x00000004, 0x0000000a, 0x0000003e, 0x00000efe, 0x000077fe, 0x00000076
++};
++
++static const uint8_t cld_lav5_2D_0_1_2_bits[6] = {
++    4, 5, 8, 12, 8, 5
++};
++
++static const uint32_t cld_lav5_2D_0_1_2_codes[6] = {
++    0x00000006, 0x00000016, 0x000000be, 0x00000efd, 0x000000ee, 0x0000000e
++};
++
++static const uint8_t cld_lav5_2D_0_1_3_bits[6] = {
++    6, 6, 9, 10, 7, 5
++};
++
++static const uint32_t cld_lav5_2D_0_1_3_codes[6] = {
++    0x0000003e, 0x0000002e, 0x000001de, 0x000003be, 0x0000007e, 0x0000001e
++};
++
++static const uint8_t cld_lav5_2D_0_1_4_bits[6] = {
++    7, 7, 14, 9, 6, 3
++};
++
++static const uint32_t cld_lav5_2D_0_1_4_codes[6] = {
++    0x0000007f, 0x0000005e, 0x00003bfe, 0x000000fe, 0x0000001e, 0x00000002
++};
++
++static const uint8_t cld_lav5_2D_0_1_5_bits[6] = {
++    8, 17, 13, 9, 6, 2
++};
++
++static const uint32_t cld_lav5_2D_0_1_5_codes[6] = {
++    0x000000bf, 0x0001dfff, 0x00001dfe, 0x000000ff, 0x0000003a, 0x00000000
++};
++
++/* cld_lav7_2D_0_1*/
++static const uint8_t cld_lav7_2D_0_1_0_bits[8] = {
++    3, 5, 8, 11, 15, 18, 20, 21
++};
++
++static const uint32_t cld_lav7_2D_0_1_0_codes[8] = {
++    0x00000002, 0x0000001c, 0x000000bc, 0x000005fc, 0x00005ffe, 0x0002ffde, 0x000bff7e, 0x0017feff
++};
++
++static const uint8_t cld_lav7_2D_0_1_1_bits[8] = {
++    3, 4, 7, 10, 13, 16, 19, 8
++};
++
++static const uint32_t cld_lav7_2D_0_1_1_codes[8] = {
++    0x00000004, 0x0000000a, 0x0000000e, 0x000002fa, 0x000001fe, 0x0000bff2, 0x0005ffbe, 0x000000ee
++};
++
++static const uint8_t cld_lav7_2D_0_1_2_bits[8] = {
++    4, 5, 8, 11, 13, 16, 9, 7
++};
++
++static const uint32_t cld_lav7_2D_0_1_2_codes[8] = {
++    0x00000002, 0x00000016, 0x000000f6, 0x000005fe, 0x000001ff, 0x0000bff6, 0x000001de, 0x0000007e
++};
++
++static const uint8_t cld_lav7_2D_0_1_3_bits[8] = {
++    5, 6, 8, 10, 14, 10, 8, 6
++};
++
++static const uint32_t cld_lav7_2D_0_1_3_codes[8] = {
++    0x00000000, 0x0000003c, 0x0000000e, 0x0000003e, 0x00002ffe, 0x000002fb, 0x000000f7, 0x0000002e
++};
++
++static const uint8_t cld_lav7_2D_0_1_4_bits[8] = {
++    6, 7, 8, 11, 12, 9, 7, 5
++};
++
++static const uint32_t cld_lav7_2D_0_1_4_codes[8] = {
++    0x00000006, 0x0000007a, 0x0000000a, 0x0000007e, 0x000000fe, 0x00000016, 0x00000006, 0x00000002
++};
++
++static const uint8_t cld_lav7_2D_0_1_5_bits[8] = {
++    7, 7, 9, 15, 12, 9, 7, 4
++};
++
++static const uint32_t cld_lav7_2D_0_1_5_codes[8] = {
++    0x0000000f, 0x00000076, 0x00000017, 0x00005ff8, 0x00000bfe, 0x0000001e, 0x0000007f, 0x00000003
++};
++
++static const uint8_t cld_lav7_2D_0_1_6_bits[8] = {
++    7, 8, 16, 15, 12, 9, 6, 3
++};
++
++static const uint32_t cld_lav7_2D_0_1_6_codes[8] = {
++    0x00000004, 0x000000bd, 0x0000bff3, 0x00005fff, 0x00000bfa, 0x0000017c, 0x0000003a, 0x00000003
++};
++
++static const uint8_t cld_lav7_2D_0_1_7_bits[8] = {
++    9, 21, 17, 15, 12, 9, 6, 3
++};
++
++static const uint32_t cld_lav7_2D_0_1_7_codes[8] = {
++    0x0000017e, 0x0017fefe, 0x00017fee, 0x00005ffa, 0x00000bfb, 0x000001df, 0x0000003e, 0x00000006
++};
++
++/* cld_lav9_2D_0_1*/
++static const uint8_t cld_lav9_2D_0_1_0_bits[10] = {
++    4, 5, 8, 11, 14, 16, 19, 21, 21, 21
++};
++
++static const uint32_t cld_lav9_2D_0_1_0_codes[10] = {
++    0x0000000e, 0x00000014, 0x0000008e, 0x000004fe, 0x000023fe, 0x00008ffe, 0x0005ffbc, 0x0017fef7,
++    0x0017fef7, 0x0017fef7
++};
++
++static const uint8_t cld_lav9_2D_0_1_1_bits[10] = {
++    3, 4, 7, 10, 13, 16, 19, 17, 20, 8
++};
++
++static const uint32_t cld_lav9_2D_0_1_1_codes[10] = {
++    0x00000002, 0x00000002, 0x00000044, 0x0000027e, 0x000017fc, 0x0000bff6, 0x0005ffbe, 0x00011ff8,
++    0x000bff7a, 0x000000bc
++};
++
++static const uint8_t cld_lav9_2D_0_1_2_bits[10] = {
++    4, 5, 7, 10, 13, 16, 17, 21, 9, 7
++};
++
++static const uint32_t cld_lav9_2D_0_1_2_codes[10] = {
++    0x00000006, 0x00000016, 0x0000001a, 0x000000fe, 0x000011f6, 0x0000bffe, 0x00011ff9, 0x0017fef6,
++    0x0000011e, 0x00000056
++};
++
++static const uint8_t cld_lav9_2D_0_1_3_bits[10] = {
++    5, 6, 8, 11, 13, 15, 17, 11, 8, 7
++};
++
++static const uint32_t cld_lav9_2D_0_1_3_codes[10] = {
++    0x00000010, 0x0000003e, 0x0000009e, 0x000007fe, 0x000011f7, 0x00005ff8, 0x00017fee, 0x000007ff,
++    0x000000ae, 0x0000001e
++};
++
++static const uint8_t cld_lav9_2D_0_1_4_bits[10] = {
++    6, 6, 9, 11, 12, 16, 12, 9, 9, 7
++};
++
++static const uint32_t cld_lav9_2D_0_1_4_codes[10] = {
++    0x00000026, 0x0000000e, 0x000001ee, 0x0000047e, 0x00000bfc, 0x0000bfff, 0x000008fa, 0x0000006e,
++    0x000001ef, 0x0000007e
++};
++
++static const uint8_t cld_lav9_2D_0_1_5_bits[10] = {
++    7, 7, 9, 10, 13, 14, 11, 10, 8, 6
++};
++
++static const uint32_t cld_lav9_2D_0_1_5_codes[10] = {
++    0x0000007a, 0x0000004e, 0x0000007e, 0x000000de, 0x000011fe, 0x00002ffe, 0x000004ff, 0x000000ff,
++    0x000000bd, 0x0000002e
++};
++
++static const uint8_t cld_lav9_2D_0_1_6_bits[10] = {
++    8, 8, 9, 11, 17, 14, 12, 10, 7, 5
++};
++
++static const uint32_t cld_lav9_2D_0_1_6_codes[10] = {
++    0x000000fe, 0x000000af, 0x000001ec, 0x000001be, 0x00011ffe, 0x00002ffa, 0x000008fe, 0x000003fe,
++    0x00000046, 0x00000012
++};
++
++static const uint8_t cld_lav9_2D_0_1_7_bits[10] = {
++    8, 7, 10, 20, 15, 15, 12, 9, 6, 4
++};
++
++static const uint32_t cld_lav9_2D_0_1_7_codes[10] = {
++    0x0000003e, 0x00000045, 0x000002fe, 0x000bff7e, 0x00005ff9, 0x00005ffa, 0x00000bfd, 0x0000013e,
++    0x0000000c, 0x00000007
++};
++
++static const uint8_t cld_lav9_2D_0_1_8_bits[10] = {
++    8, 8, 20, 18, 17, 15, 11, 9, 6, 3
++};
++
++static const uint32_t cld_lav9_2D_0_1_8_codes[10] = {
++    0x000000be, 0x00000036, 0x000bff7f, 0x00023ffe, 0x00011ffa, 0x00005ffe, 0x000001bf, 0x000001ed,
++    0x0000002a, 0x00000000
++};
++
++static const uint8_t cld_lav9_2D_0_1_9_bits[10] = {
++    9, 21, 19, 19, 17, 14, 11, 9, 6, 3
++};
++
++static const uint32_t cld_lav9_2D_0_1_9_codes[10] = {
++    0x0000017e, 0x0017fef7, 0x00047ffe, 0x00047fff, 0x00011ffb, 0x00002ffb, 0x0000047c, 0x000001fe,
++    0x0000003c, 0x00000006
++};
++
++/* cld_lav3_2D_1_0*/
++static const uint8_t cld_lav3_2D_1_0_0_bits[4] = {
++    1, 5, 10, 12
++};
++
++static const uint32_t cld_lav3_2D_1_0_0_codes[4] = {
++    0x00000000, 0x0000001e, 0x000003be, 0x00000efe
++};
++
++static const uint8_t cld_lav3_2D_1_0_1_bits[4] = {
++    3, 5, 9, 8
++};
++
++static const uint32_t cld_lav3_2D_1_0_1_codes[4] = {
++    0x00000006, 0x0000001c, 0x000001de, 0x000000ea
++};
++
++static const uint8_t cld_lav3_2D_1_0_2_bits[4] = {
++    7, 8, 8, 5
++};
++
++static const uint32_t cld_lav3_2D_1_0_2_codes[4] = {
++    0x00000074, 0x000000ee, 0x000000eb, 0x0000001f
++};
++
++static const uint8_t cld_lav3_2D_1_0_3_bits[4] = {
++    11, 12, 7, 2
++};
++
++static const uint32_t cld_lav3_2D_1_0_3_codes[4] = {
++    0x0000077e, 0x00000eff, 0x00000076, 0x00000002
++};
++
++/* cld_lav5_2D_1_0*/
++static const uint8_t cld_lav5_2D_1_0_0_bits[6] = {
++    2, 4, 7, 11, 14, 15
++};
++
++static const uint32_t cld_lav5_2D_1_0_0_codes[6] = {
++    0x00000000, 0x00000006, 0x00000024, 0x0000025e, 0x00003cfe, 0x000079fe
++};
++
++static const uint8_t cld_lav5_2D_1_0_1_bits[6] = {
++    3, 4, 7, 10, 13, 9
++};
++
++static const uint32_t cld_lav5_2D_1_0_1_codes[6] = {
++    0x00000006, 0x00000007, 0x00000078, 0x000003ce, 0x00001e7e, 0x000000be
++};
++
++static const uint8_t cld_lav5_2D_1_0_2_bits[6] = {
++    5, 6, 7, 10, 9, 7
++};
++
++static const uint32_t cld_lav5_2D_1_0_2_codes[6] = {
++    0x00000008, 0x0000003e, 0x00000026, 0x0000012e, 0x000000bf, 0x0000002e
++};
++
++static const uint8_t cld_lav5_2D_1_0_3_bits[6] = {
++    7, 7, 9, 9, 7, 6
++};
++
++static const uint32_t cld_lav5_2D_1_0_3_codes[6] = {
++    0x00000027, 0x0000007a, 0x000001e4, 0x00000096, 0x0000007b, 0x0000003f
++};
++
++static const uint8_t cld_lav5_2D_1_0_4_bits[6] = {
++    9, 9, 12, 8, 6, 4
++};
++
++static const uint32_t cld_lav5_2D_1_0_4_codes[6] = {
++    0x000001e6, 0x000001e5, 0x00000f3e, 0x0000005e, 0x00000016, 0x0000000e
++};
++
++static const uint8_t cld_lav5_2D_1_0_5_bits[6] = {
++    11, 15, 11, 8, 5, 2
++};
++
++static const uint32_t cld_lav5_2D_1_0_5_codes[6] = {
++    0x0000079e, 0x000079ff, 0x0000025f, 0x0000004a, 0x0000000a, 0x00000002
++};
++
++/* cld_lav7_2D_1_0*/
++static const uint8_t cld_lav7_2D_1_0_0_bits[8] = {
++    2, 4, 8, 11, 14, 17, 19, 19
++};
++
++static const uint32_t cld_lav7_2D_1_0_0_codes[8] = {
++    0x00000000, 0x00000006, 0x000000de, 0x0000069e, 0x000034fe, 0x0001a7fe, 0x00069ff6, 0x00069ff7
++};
++
++static const uint8_t cld_lav7_2D_1_0_1_bits[8] = {
++    3, 4, 7, 10, 13, 15, 17, 10
++};
++
++static const uint32_t cld_lav7_2D_1_0_1_codes[8] = {
++    0x00000002, 0x0000000c, 0x0000006a, 0x0000034e, 0x00001fde, 0x000069fe, 0x0001a7fc, 0x00000372
++};
++
++static const uint8_t cld_lav7_2D_1_0_2_bits[8] = {
++    6, 6, 8, 10, 12, 15, 10, 8
++};
++
++static const uint32_t cld_lav7_2D_1_0_2_codes[8] = {
++    0x0000003e, 0x0000003c, 0x000000df, 0x000001ee, 0x00000dde, 0x000069fa, 0x00000373, 0x0000007a
++};
++
++static const uint8_t cld_lav7_2D_1_0_3_bits[8] = {
++    7, 7, 9, 10, 12, 10, 9, 8
++};
++
++static const uint32_t cld_lav7_2D_1_0_3_codes[8] = {
++    0x0000003e, 0x00000068, 0x000001ba, 0x000003f6, 0x00000d3e, 0x0000034c, 0x000001fa, 0x000000d2
++};
++
++static const uint8_t cld_lav7_2D_1_0_4_bits[8] = {
++    8, 8, 9, 11, 11, 9, 9, 7
++};
++
++static const uint32_t cld_lav7_2D_1_0_4_codes[8] = {
++    0x0000007e, 0x0000007f, 0x000001f8, 0x000006ee, 0x000003de, 0x000001b8, 0x000001fc, 0x0000006b
++};
++
++static const uint8_t cld_lav7_2D_1_0_5_bits[8] = {
++    9, 9, 10, 14, 11, 10, 7, 6
++};
++
++static const uint32_t cld_lav7_2D_1_0_5_codes[8] = {
++    0x000000f6, 0x000001fe, 0x0000034d, 0x00003fbe, 0x000007f6, 0x000003fa, 0x0000003c, 0x0000003d
++};
++
++static const uint8_t cld_lav7_2D_1_0_6_bits[8] = {
++    10, 10, 17, 14, 12, 9, 6, 4
++};
++
++static const uint32_t cld_lav7_2D_1_0_6_codes[8] = {
++    0x000003f7, 0x00000376, 0x0001a7ff, 0x00003fbf, 0x00000ddf, 0x000001f9, 0x00000036, 0x0000000e
++};
++
++static const uint8_t cld_lav7_2D_1_0_7_bits[8] = {
++    11, 18, 15, 14, 12, 9, 5, 2
++};
++
++static const uint32_t cld_lav7_2D_1_0_7_codes[8] = {
++    0x000003df, 0x00034ffa, 0x000069fb, 0x000034fc, 0x00000fee, 0x000001ff, 0x0000000e, 0x00000002
++};
++
++/* cld_lav9_2D_1_0*/
++static const uint8_t cld_lav9_2D_1_0_0_bits[10] = {
++    3, 4, 7, 11, 13, 16, 17, 21, 21, 21
++};
++
++static const uint32_t cld_lav9_2D_1_0_0_codes[10] = {
++    0x00000006, 0x00000004, 0x00000012, 0x000007fe, 0x00001f7e, 0x0000fbfe, 0x0001f7fe, 0x000b7dfe,
++    0x000b7dff, 0x000b7dff
++};
++
++static const uint8_t cld_lav9_2D_1_0_1_bits[10] = {
++    3, 4, 7, 9, 12, 14, 17, 16, 18, 10
++};
++
++static const uint32_t cld_lav9_2D_1_0_1_codes[10] = {
++    0x00000000, 0x00000006, 0x0000007c, 0x00000046, 0x000007d0, 0x00001f4e, 0x0000b7fe, 0x00005bee,
++    0x00016fbe, 0x000003ee
++};
++
++static const uint8_t cld_lav9_2D_1_0_2_bits[10] = {
++    5, 5, 7, 10, 12, 14, 15, 17, 10, 8
++};
++
++static const uint32_t cld_lav9_2D_1_0_2_codes[10] = {
++    0x00000006, 0x0000000a, 0x0000002e, 0x000003fe, 0x000007d2, 0x00001f4f, 0x00002dfe, 0x0000b7de,
++    0x000001fe, 0x0000002e
++};
++
++static const uint8_t cld_lav9_2D_1_0_3_bits[10] = {
++    7, 7, 8, 10, 12, 13, 14, 10, 8, 8
++};
++
++static const uint32_t cld_lav9_2D_1_0_3_codes[10] = {
++    0x0000007a, 0x0000007e, 0x0000007a, 0x000001fa, 0x000007fe, 0x00001f7c, 0x000016fa, 0x0000009e,
++    0x00000020, 0x00000021
++};
++
++static const uint8_t cld_lav9_2D_1_0_4_bits[10] = {
++    8, 7, 9, 10, 10, 13, 11, 9, 9, 8
++};
++
++static const uint32_t cld_lav9_2D_1_0_4_codes[10] = {
++    0x000000fe, 0x00000016, 0x000000fe, 0x0000016e, 0x0000009f, 0x00000b7c, 0x000003de, 0x000000b6,
++    0x000000be, 0x0000007c
++};
++
++static const uint8_t cld_lav9_2D_1_0_5_bits[10] = {
++    8, 8, 9, 9, 12, 12, 10, 10, 8, 7
++};
++
++static const uint32_t cld_lav9_2D_1_0_5_codes[10] = {
++    0x0000005a, 0x00000078, 0x00000047, 0x00000044, 0x000007ff, 0x000007d1, 0x000001f6, 0x000001f7,
++    0x0000002f, 0x0000002c
++};
++
++static const uint8_t cld_lav9_2D_1_0_6_bits[10] = {
++    9, 9, 9, 11, 14, 11, 11, 9, 8, 6
++};
++
++static const uint32_t cld_lav9_2D_1_0_6_codes[10] = {
++    0x000000fc, 0x000001f6, 0x000000f6, 0x000007ff, 0x000016fe, 0x000002de, 0x000003ea, 0x000000bf,
++    0x000000fa, 0x0000000a
++};
++
++static const uint8_t cld_lav9_2D_1_0_7_bits[10] = {
++    9, 8, 10, 16, 14, 13, 11, 9, 7, 5
++};
++
++static const uint32_t cld_lav9_2D_1_0_7_codes[10] = {
++    0x0000004e, 0x00000026, 0x000001ee, 0x00005bfe, 0x00003efe, 0x00000b7e, 0x000003eb, 0x000001fe,
++    0x0000007b, 0x00000007
++};
++
++static const uint8_t cld_lav9_2D_1_0_8_bits[10] = {
++    10, 9, 18, 17, 15, 13, 11, 8, 6, 4
++};
++
++static const uint32_t cld_lav9_2D_1_0_8_codes[10] = {
++    0x000001fb, 0x00000045, 0x00016ffe, 0x0001f7ff, 0x00002df6, 0x00001f7d, 0x000003fe, 0x0000005e,
++    0x0000003c, 0x0000000e
++};
++
++static const uint8_t cld_lav9_2D_1_0_9_bits[10] = {
++    11, 20, 19, 18, 15, 13, 11, 8, 5, 2
++};
++
++static const uint32_t cld_lav9_2D_1_0_9_codes[10] = {
++    0x000003df, 0x0005befe, 0x0002df7e, 0x00016fff, 0x00007dfe, 0x00000fa6, 0x000007de, 0x00000079,
++    0x0000000e, 0x00000002
++};
++
++/* cld_lav3_2D_1_1*/
++static const uint8_t cld_lav3_2D_1_1_0_bits[4] = {
++    1, 4, 8, 11
++};
++
++static const uint32_t cld_lav3_2D_1_1_0_codes[4] = {
++    0x00000000, 0x0000000e, 0x000000fa, 0x000007de
++};
++
++static const uint8_t cld_lav3_2D_1_1_1_bits[4] = {
++    4, 5, 8, 9
++};
++
++static const uint32_t cld_lav3_2D_1_1_1_codes[4] = {
++    0x0000000c, 0x0000001e, 0x000000fe, 0x000001f6
++};
++
++static const uint8_t cld_lav3_2D_1_1_2_bits[4] = {
++    8, 7, 7, 5
++};
++
++static const uint32_t cld_lav3_2D_1_1_2_codes[4] = {
++    0x000000ff, 0x0000007c, 0x0000007e, 0x0000001a
++};
++
++static const uint8_t cld_lav3_2D_1_1_3_bits[4] = {
++    11, 10, 5, 2
++};
++
++static const uint32_t cld_lav3_2D_1_1_3_codes[4] = {
++    0x000007df, 0x000003ee, 0x0000001b, 0x00000002
++};
++
++/* cld_lav5_2D_1_1*/
++static const uint8_t cld_lav5_2D_1_1_0_bits[6] = {
++    3, 4, 7, 10, 12, 14
++};
++
++static const uint32_t cld_lav5_2D_1_1_0_codes[6] = {
++    0x00000006, 0x0000000e, 0x0000007c, 0x000003fe, 0x00000fbe, 0x00003efe
++};
++
++static const uint8_t cld_lav5_2D_1_1_1_bits[6] = {
++    3, 3, 6, 8, 11, 11
++};
++
++static const uint32_t cld_lav5_2D_1_1_1_codes[6] = {
++    0x00000000, 0x00000001, 0x0000003c, 0x0000005e, 0x000007de, 0x000007be
++};
++
++static const uint8_t cld_lav5_2D_1_1_2_bits[6] = {
++    6, 5, 6, 8, 9, 9
++};
++
++static const uint32_t cld_lav5_2D_1_1_2_codes[6] = {
++    0x0000001e, 0x0000000a, 0x0000001f, 0x0000005f, 0x000001ee, 0x000001f6
++};
++
++static const uint8_t cld_lav5_2D_1_1_3_bits[6] = {
++    9, 8, 8, 8, 7, 6
++};
++
++static const uint32_t cld_lav5_2D_1_1_3_codes[6] = {
++    0x000001fe, 0x000000fe, 0x000000f6, 0x000000fa, 0x0000007e, 0x00000016
++};
++
++static const uint8_t cld_lav5_2D_1_1_4_bits[6] = {
++    11, 10, 10, 7, 5, 4
++};
++
++static const uint32_t cld_lav5_2D_1_1_4_codes[6] = {
++    0x000007bf, 0x000003de, 0x000003ee, 0x0000007a, 0x0000000e, 0x00000006
++};
++
++static const uint8_t cld_lav5_2D_1_1_5_bits[6] = {
++    14, 13, 10, 7, 4, 2
++};
++
++static const uint32_t cld_lav5_2D_1_1_5_codes[6] = {
++    0x00003eff, 0x00001f7e, 0x000003ff, 0x0000002e, 0x00000004, 0x00000002
++};
++
++/* cld_lav7_2D_1_1*/
++static const uint8_t cld_lav7_2D_1_1_0_bits[8] = {
++    3, 4, 6, 9, 11, 12, 13, 15
++};
++
++static const uint32_t cld_lav7_2D_1_1_0_codes[8] = {
++    0x00000002, 0x0000000a, 0x0000001a, 0x000001be, 0x000006e6, 0x0000067a, 0x00000cf2, 0x000033de
++};
++
++static const uint8_t cld_lav7_2D_1_1_1_bits[8] = {
++    4, 4, 5, 8, 10, 11, 12, 13
++};
++
++static const uint32_t cld_lav7_2D_1_1_1_codes[8] = {
++    0x0000000c, 0x0000000e, 0x0000000e, 0x000000de, 0x00000372, 0x000003d6, 0x00000678, 0x00000cf6
++};
++
++static const uint8_t cld_lav7_2D_1_1_2_bits[8] = {
++    6, 5, 6, 7, 9, 11, 11, 11
++};
++
++static const uint32_t cld_lav7_2D_1_1_2_codes[8] = {
++    0x00000036, 0x00000012, 0x0000003e, 0x0000003c, 0x000001b8, 0x000003d4, 0x0000033e, 0x0000033f
++};
++
++static const uint8_t cld_lav7_2D_1_1_3_bits[8] = {
++    8, 7, 7, 7, 9, 9, 9, 10
++};
++
++static const uint32_t cld_lav7_2D_1_1_3_codes[8] = {
++    0x0000007e, 0x0000006a, 0x0000004e, 0x0000007e, 0x000001ba, 0x000000ce, 0x000000f6, 0x000001ee
++};
++
++static const uint8_t cld_lav7_2D_1_1_4_bits[8] = {
++    10, 9, 8, 8, 8, 7, 8, 8
++};
++
++static const uint32_t cld_lav7_2D_1_1_4_codes[8] = {
++    0x000001ef, 0x0000013e, 0x0000007f, 0x00000066, 0x000000d6, 0x0000003e, 0x000000d7, 0x0000009e
++};
++
++static const uint8_t cld_lav7_2D_1_1_5_bits[8] = {
++    12, 10, 10, 10, 7, 6, 6, 6
++};
++
++static const uint32_t cld_lav7_2D_1_1_5_codes[8] = {
++    0x000007ae, 0x000001e8, 0x000001e9, 0x0000027e, 0x00000032, 0x00000018, 0x00000026, 0x00000034
++};
++
++static const uint8_t cld_lav7_2D_1_1_6_bits[8] = {
++    13, 12, 12, 10, 9, 6, 5, 4
++};
++
++static const uint32_t cld_lav7_2D_1_1_6_codes[8] = {
++    0x00000cf3, 0x000007aa, 0x000007ab, 0x0000027f, 0x000001bf, 0x0000001b, 0x0000001e, 0x0000000b
++};
++
++static const uint8_t cld_lav7_2D_1_1_7_bits[8] = {
++    15, 14, 12, 11, 9, 7, 4, 2
++};
++
++static const uint32_t cld_lav7_2D_1_1_7_codes[8] = {
++    0x000033df, 0x000019ee, 0x000007af, 0x000006e7, 0x000001bb, 0x0000007f, 0x00000008, 0x00000000
++};
++
++/* cld_lav9_2D_1_1*/
++static const uint8_t cld_lav9_2D_1_1_0_bits[10] = {
++    4, 4, 7, 9, 10, 12, 13, 14, 15, 17
++};
++
++static const uint32_t cld_lav9_2D_1_1_0_codes[10] = {
++    0x0000000e, 0x00000008, 0x0000007e, 0x000001fe, 0x000001ba, 0x00000dbe, 0x00000d7e, 0x00001af6,
++    0x00007fec, 0x0001ffb6
++};
++
++static const uint8_t cld_lav9_2D_1_1_1_bits[10] = {
++    4, 4, 5, 7, 9, 11, 12, 13, 15, 15
++};
++
++static const uint32_t cld_lav9_2D_1_1_1_codes[10] = {
++    0x0000000a, 0x0000000c, 0x0000000c, 0x00000036, 0x000000de, 0x000005fe, 0x000006be, 0x00001b7e,
++    0x00007fee, 0x00006dfe
++};
++
++static const uint8_t cld_lav9_2D_1_1_2_bits[10] = {
++    6, 5, 5, 7, 9, 11, 11, 13, 13, 13
++};
++
++static const uint32_t cld_lav9_2D_1_1_2_codes[10] = {
++    0x0000001e, 0x0000000e, 0x0000000a, 0x0000006a, 0x000001ae, 0x000006fe, 0x00000376, 0x00000dfe,
++    0x00000dff, 0x00000d7f
++};
++
++static const uint8_t cld_lav9_2D_1_1_3_bits[10] = {
++    8, 7, 7, 7, 8, 9, 12, 12, 12, 13
++};
++
++static const uint32_t cld_lav9_2D_1_1_3_codes[10] = {
++    0x000000b6, 0x0000005e, 0x0000007c, 0x0000006e, 0x0000006a, 0x0000016a, 0x00000ffe, 0x00000dfe,
++    0x00000ffc, 0x00001bfe
++};
++
++static const uint8_t cld_lav9_2D_1_1_4_bits[10] = {
++    10, 9, 8, 8, 7, 9, 10, 10, 11, 11
++};
++
++static const uint32_t cld_lav9_2D_1_1_4_codes[10] = {
++    0x0000035e, 0x000001b6, 0x0000005e, 0x000000b4, 0x0000006c, 0x0000017e, 0x0000036e, 0x000003ee,
++    0x0000037e, 0x00000377
++};
++
++static const uint8_t cld_lav9_2D_1_1_5_bits[10] = {
++    12, 10, 10, 9, 9, 8, 8, 9, 9, 10
++};
++
++static const uint32_t cld_lav9_2D_1_1_5_codes[10] = {
++    0x00000fff, 0x000001ae, 0x000001be, 0x000001f6, 0x000001be, 0x000000da, 0x000000fe, 0x0000016b,
++    0x000000d6, 0x0000037e
++};
++
++static const uint8_t cld_lav9_2D_1_1_6_bits[10] = {
++    13, 12, 11, 11, 10, 8, 7, 7, 8, 8
++};
++
++static const uint32_t cld_lav9_2D_1_1_6_codes[10] = {
++    0x000017fe, 0x00000bfe, 0x000007de, 0x000006de, 0x000001b8, 0x000000d6, 0x0000002e, 0x00000034,
++    0x000000de, 0x000000be
++};
++
++static const uint8_t cld_lav9_2D_1_1_7_bits[10] = {
++    15, 12, 13, 13, 10, 10, 8, 6, 6, 6
++};
++
++static const uint32_t cld_lav9_2D_1_1_7_codes[10] = {
++    0x00007fef, 0x000006bc, 0x00001bff, 0x00001ffa, 0x000001b9, 0x000003fe, 0x000000fa, 0x0000002e,
++    0x00000034, 0x0000001f
++};
++
++static const uint8_t cld_lav9_2D_1_1_8_bits[10] = {
++    15, 14, 14, 12, 12, 10, 8, 6, 5, 4
++};
++
++static const uint32_t cld_lav9_2D_1_1_8_codes[10] = {
++    0x00006dff, 0x00001af7, 0x000036fe, 0x000006fe, 0x00000fbe, 0x0000035f, 0x000000b7, 0x0000002c,
++    0x0000001e, 0x00000009
++};
++
++static const uint8_t cld_lav9_2D_1_1_9_bits[10] = {
++    17, 16, 13, 13, 12, 10, 8, 6, 4, 2
++};
++
++static const uint32_t cld_lav9_2D_1_1_9_codes[10] = {
++    0x0001ffb7, 0x0000ffda, 0x00000d7a, 0x000017ff, 0x00000fbf, 0x000002fe, 0x0000005f, 0x00000016,
++    0x00000004, 0x00000000
++};
++
++/* icc_1D*/
++static const uint8_t icc_1D_0_bits[8] = {
++    1, 2, 3, 4, 5, 6, 7, 7
++};
++
++static const uint32_t icc_1D_0_codes[8] = {
++    0x00000000, 0x00000002, 0x00000006, 0x0000000e, 0x0000001e, 0x0000003e, 0x0000007e, 0x0000007f
++};
++
++static const uint8_t icc_1D_1_bits[8] = {
++    1, 2, 3, 4, 5, 6, 7, 7
++};
++
++static const uint32_t icc_1D_1_codes[8] = {
++    0x00000000, 0x00000002, 0x00000006, 0x0000000e, 0x0000001e, 0x0000003e, 0x0000007e, 0x0000007f
++};
++
++/* icc_lav1_2D_0_0*/
++static const uint8_t icc_lav1_2D_0_0_0_bits[2] = {
++    1, 3
++};
++
++static const uint32_t icc_lav1_2D_0_0_0_codes[2] = {
++    0x00000000, 0x00000006
++};
++
++static const uint8_t icc_lav1_2D_0_0_1_bits[2] = {
++    3, 2
++};
++
++static const uint32_t icc_lav1_2D_0_0_1_codes[2] = {
++    0x00000007, 0x00000002
++};
++
++/* icc_lav3_2D_0_0*/
++static const uint8_t icc_lav3_2D_0_0_0_bits[4] = {
++    2, 2, 5, 8
++};
++
++static const uint32_t icc_lav3_2D_0_0_0_codes[4] = {
++    0x00000002, 0x00000000, 0x0000000a, 0x0000007e
++};
++
++static const uint8_t icc_lav3_2D_0_0_1_bits[4] = {
++    5, 4, 6, 11
++};
++
++static const uint32_t icc_lav3_2D_0_0_1_codes[4] = {
++    0x0000000e, 0x00000004, 0x00000016, 0x000003fe
++};
++
++static const uint8_t icc_lav3_2D_0_0_2_bits[4] = {
++    10, 9, 7, 6
++};
++
++static const uint32_t icc_lav3_2D_0_0_2_codes[4] = {
++    0x000001fe, 0x000000fe, 0x0000003e, 0x0000001e
++};
++
++static const uint8_t icc_lav3_2D_0_0_3_bits[4] = {
++    11, 6, 4, 2
++};
++
++static const uint32_t icc_lav3_2D_0_0_3_codes[4] = {
++    0x000003ff, 0x00000017, 0x00000006, 0x00000003
++};
++
++/* icc_lav5_2D_0_0*/
++static const uint8_t icc_lav5_2D_0_0_0_bits[6] = {
++    2, 3, 5, 7, 8, 11
++};
++
++static const uint32_t icc_lav5_2D_0_0_0_codes[6] = {
++    0x00000000, 0x00000002, 0x0000000c, 0x0000006a, 0x000000dc, 0x000006ee
++};
++
++static const uint8_t icc_lav5_2D_0_0_1_bits[6] = {
++    5, 4, 5, 6, 9, 16
++};
++
++static const uint32_t icc_lav5_2D_0_0_1_codes[6] = {
++    0x0000001e, 0x0000000c, 0x0000000d, 0x0000001e, 0x000001ae, 0x0000ddff
++};
++
++static const uint8_t icc_lav5_2D_0_0_2_bits[6] = {
++    8, 7, 6, 9, 15, 16
++};
++
++static const uint32_t icc_lav5_2D_0_0_2_codes[6] = {
++    0x000000de, 0x0000007e, 0x0000001f, 0x000001be, 0x00006efe, 0x0000ddfe
++};
++
++static const uint8_t icc_lav5_2D_0_0_3_bits[6] = {
++    14, 13, 12, 9, 8, 10
++};
++
++static const uint32_t icc_lav5_2D_0_0_3_codes[6] = {
++    0x0000377e, 0x00001bbe, 0x00000dde, 0x000001bf, 0x000000d6, 0x00000376
++};
++
++static const uint8_t icc_lav5_2D_0_0_4_bits[6] = {
++    16, 16, 9, 6, 6, 5
++};
++
++static const uint32_t icc_lav5_2D_0_0_4_codes[6] = {
++    0x0000ddff, 0x0000ddff, 0x000001ba, 0x00000034, 0x0000003e, 0x0000000e
++};
++
++static const uint8_t icc_lav5_2D_0_0_5_bits[6] = {
++    16, 9, 7, 6, 4, 2
++};
++
++static const uint32_t icc_lav5_2D_0_0_5_codes[6] = {
++    0x0000ddff, 0x000001af, 0x0000007f, 0x00000036, 0x0000000e, 0x00000002
++};
++
++/* icc_lav7_2D_0_0*/
++static const uint8_t icc_lav7_2D_0_0_0_bits[8] = {
++    2, 4, 6, 7, 8, 11, 11, 12
++};
++
++static const uint32_t icc_lav7_2D_0_0_0_codes[8] = {
++    0x00000000, 0x0000000c, 0x0000002e, 0x00000044, 0x00000086, 0x0000069e, 0x0000043e, 0x0000087a
++};
++
++static const uint8_t icc_lav7_2D_0_0_1_bits[8] = {
++    5, 4, 6, 7, 9, 7, 10, 12
++};
++
++static const uint32_t icc_lav7_2D_0_0_1_codes[8] = {
++    0x0000001e, 0x0000000e, 0x0000002a, 0x00000046, 0x0000015e, 0x00000047, 0x0000034a, 0x0000087b
++};
++
++static const uint8_t icc_lav7_2D_0_0_2_bits[8] = {
++    8, 6, 6, 8, 7, 10, 12, 12
++};
++
++static const uint32_t icc_lav7_2D_0_0_2_codes[8] = {
++    0x000000d6, 0x00000026, 0x0000002f, 0x000000d7, 0x0000006a, 0x0000034e, 0x0000087b, 0x0000087b
++};
++
++static const uint8_t icc_lav7_2D_0_0_3_bits[8] = {
++    10, 9, 9, 5, 9, 12, 12, 12
++};
++
++static const uint32_t icc_lav7_2D_0_0_3_codes[8] = {
++    0x000002be, 0x000001a6, 0x000001be, 0x00000012, 0x000001bf, 0x0000087b, 0x0000087b, 0x0000087b
++};
++
++static const uint8_t icc_lav7_2D_0_0_4_bits[8] = {
++    12, 12, 12, 12, 6, 8, 11, 11
++};
++
++static const uint32_t icc_lav7_2D_0_0_4_codes[8] = {
++    0x0000087b, 0x0000087b, 0x0000087b, 0x0000087b, 0x00000036, 0x000000d0, 0x0000043c, 0x0000043f
++};
++
++static const uint8_t icc_lav7_2D_0_0_5_bits[8] = {
++    12, 12, 12, 10, 6, 6, 7, 8
++};
++
++static const uint32_t icc_lav7_2D_0_0_5_codes[8] = {
++    0x0000087b, 0x0000087b, 0x0000087b, 0x0000034b, 0x00000027, 0x00000020, 0x00000042, 0x000000d1
++};
++
++static const uint8_t icc_lav7_2D_0_0_6_bits[8] = {
++    12, 12, 10, 8, 8, 7, 5, 5
++};
++
++static const uint32_t icc_lav7_2D_0_0_6_codes[8] = {
++    0x0000087b, 0x0000087b, 0x000002bf, 0x000000de, 0x000000ae, 0x00000056, 0x00000016, 0x00000014
++};
++
++static const uint8_t icc_lav7_2D_0_0_7_bits[8] = {
++    12, 11, 9, 9, 7, 7, 5, 2
++};
++
++static const uint32_t icc_lav7_2D_0_0_7_codes[8] = {
++    0x0000087b, 0x0000069f, 0x000001a4, 0x0000010e, 0x00000045, 0x0000006e, 0x0000001f, 0x00000001
++};
++
++/* icc_lav1_2D_0_1*/
++static const uint8_t icc_lav1_2D_0_1_0_bits[2] = {
++    1, 3
++};
++
++static const uint32_t icc_lav1_2D_0_1_0_codes[2] = {
++    0x00000000, 0x00000006
++};
++
++static const uint8_t icc_lav1_2D_0_1_1_bits[2] = {
++    3, 2
++};
++
++static const uint32_t icc_lav1_2D_0_1_1_codes[2] = {
++    0x00000007, 0x00000002
++};
++
++/* icc_lav3_2D_0_1*/
++static const uint8_t icc_lav3_2D_0_1_0_bits[4] = {
++    2, 4, 10, 11
++};
++
++static const uint32_t icc_lav3_2D_0_1_0_codes[4] = {
++    0x00000002, 0x00000004, 0x0000017e, 0x000002fe
++};
++
++static const uint8_t icc_lav3_2D_0_1_1_bits[4] = {
++    2, 5, 9, 6
++};
++
++static const uint32_t icc_lav3_2D_0_1_1_codes[4] = {
++    0x00000000, 0x0000000e, 0x000000be, 0x00000016
++};
++
++static const uint8_t icc_lav3_2D_0_1_2_bits[4] = {
++    5, 6, 8, 4
++};
++
++static const uint32_t icc_lav3_2D_0_1_2_codes[4] = {
++    0x0000000f, 0x00000014, 0x0000005e, 0x00000006
++};
++
++static const uint8_t icc_lav3_2D_0_1_3_bits[4] = {
++    7, 11, 6, 2
++};
++
++static const uint32_t icc_lav3_2D_0_1_3_codes[4] = {
++    0x0000002e, 0x000002ff, 0x00000015, 0x00000003
++};
++
++/* icc_lav5_2D_0_1*/
++static const uint8_t icc_lav5_2D_0_1_0_bits[6] = {
++    2, 5, 10, 16, 20, 20
++};
++
++static const uint32_t icc_lav5_2D_0_1_0_codes[6] = {
++    0x00000000, 0x0000001e, 0x000003fc, 0x0000fffa, 0x000fff9e, 0x000fff9f
++};
++
++static const uint8_t icc_lav5_2D_0_1_1_bits[6] = {
++    3, 4, 9, 15, 19, 8
++};
++
++static const uint32_t icc_lav5_2D_0_1_1_codes[6] = {
++    0x00000006, 0x00000004, 0x000000be, 0x00007ffe, 0x0007ffce, 0x000000fe
++};
++
++static const uint8_t icc_lav5_2D_0_1_2_bits[6] = {
++    4, 6, 10, 16, 12, 6
++};
++
++static const uint32_t icc_lav5_2D_0_1_2_codes[6] = {
++    0x00000006, 0x0000001e, 0x000003fd, 0x0000fffb, 0x00000ffe, 0x0000003e
++};
++
++static const uint8_t icc_lav5_2D_0_1_3_bits[6] = {
++    5, 7, 13, 15, 8, 5
++};
++
++static const uint32_t icc_lav5_2D_0_1_3_codes[6] = {
++    0x0000000a, 0x0000007e, 0x00001ffe, 0x00007fff, 0x0000005e, 0x0000000e
++};
++
++static const uint8_t icc_lav5_2D_0_1_4_bits[6] = {
++    6, 10, 17, 12, 7, 4
++};
++
++static const uint32_t icc_lav5_2D_0_1_4_codes[6] = {
++    0x0000001f, 0x000003fe, 0x0001fff2, 0x00000ffc, 0x0000002e, 0x0000000e
++};
++
++static const uint8_t icc_lav5_2D_0_1_5_bits[6] = {
++    9, 18, 16, 12, 6, 2
++};
++
++static const uint32_t icc_lav5_2D_0_1_5_codes[6] = {
++    0x000000bf, 0x0003ffe6, 0x0000fff8, 0x00000ffd, 0x00000016, 0x00000002
++};
++
++/* icc_lav7_2D_0_1*/
++static const uint8_t icc_lav7_2D_0_1_0_bits[8] = {
++    2, 6, 12, 16, 16, 16, 16, 16
++};
++
++static const uint32_t icc_lav7_2D_0_1_0_codes[8] = {
++    0x00000002, 0x0000001e, 0x00000ffe, 0x0000ffff, 0x0000fffe, 0x0000ffff, 0x0000ffff, 0x0000ffff
++};
++
++static const uint8_t icc_lav7_2D_0_1_1_bits[8] = {
++    3, 5, 11, 16, 16, 16, 16, 8
++};
++
++static const uint32_t icc_lav7_2D_0_1_1_codes[8] = {
++    0x00000006, 0x00000008, 0x000007fe, 0x0000ffff, 0x0000ffff, 0x0000ffff, 0x0000ffff, 0x0000005a
++};
++
++static const uint8_t icc_lav7_2D_0_1_2_bits[8] = {
++    4, 7, 10, 15, 16, 16, 13, 6
++};
++
++static const uint32_t icc_lav7_2D_0_1_2_codes[8] = {
++    0x00000006, 0x0000007a, 0x00000164, 0x00007ffa, 0x0000ffff, 0x0000ffff, 0x00001fee, 0x0000003c
++};
++
++static const uint8_t icc_lav7_2D_0_1_3_bits[8] = {
++    5, 8, 11, 11, 15, 13, 9, 7
++};
++
++static const uint32_t icc_lav7_2D_0_1_3_codes[8] = {
++    0x0000000e, 0x000000fe, 0x000002ce, 0x000002cf, 0x00007ffb, 0x00001fec, 0x000000b0, 0x0000002e
++};
++
++static const uint8_t icc_lav7_2D_0_1_4_bits[8] = {
++    6, 10, 10, 15, 13, 11, 11, 6
++};
++
++static const uint32_t icc_lav7_2D_0_1_4_codes[8] = {
++    0x0000003e, 0x000003fe, 0x00000165, 0x00007ffc, 0x00001fef, 0x000007fa, 0x000007f8, 0x0000001f
++};
++
++static const uint8_t icc_lav7_2D_0_1_5_bits[8] = {
++    7, 8, 13, 16, 15, 12, 9, 5
++};
++
++static const uint32_t icc_lav7_2D_0_1_5_codes[8] = {
++    0x0000002f, 0x000000f6, 0x00001fed, 0x0000ffff, 0x00007ffd, 0x00000ff2, 0x000000b1, 0x0000000a
++};
++
++static const uint8_t icc_lav7_2D_0_1_6_bits[8] = {
++    5, 10, 16, 16, 15, 14, 8, 4
++};
++
++static const uint32_t icc_lav7_2D_0_1_6_codes[8] = {
++    0x00000009, 0x00000166, 0x0000ffff, 0x0000ffff, 0x00007ffe, 0x00003ffc, 0x0000005b, 0x0000000e
++};
++
++static const uint8_t icc_lav7_2D_0_1_7_bits[8] = {
++    7, 16, 16, 16, 16, 12, 8, 2
++};
++
++static const uint32_t icc_lav7_2D_0_1_7_codes[8] = {
++    0x0000007e, 0x0000ffff, 0x0000ffff, 0x0000ffff, 0x0000ffff, 0x00000ff3, 0x000000f7, 0x00000000
++};
++
++/* icc_lav1_2D_1_0*/
++static const uint8_t icc_lav1_2D_1_0_0_bits[2] = {
++    1, 3
++};
++
++static const uint32_t icc_lav1_2D_1_0_0_codes[2] = {
++    0x00000000, 0x00000006
++};
++
++static const uint8_t icc_lav1_2D_1_0_1_bits[2] = {
++    3, 2
++};
++
++static const uint32_t icc_lav1_2D_1_0_1_codes[2] = {
++    0x00000007, 0x00000002
++};
++
++/* icc_lav3_2D_1_0*/
++static const uint8_t icc_lav3_2D_1_0_0_bits[4] = {
++    2, 4, 10, 12
++};
++
++static const uint32_t icc_lav3_2D_1_0_0_codes[4] = {
++    0x00000002, 0x0000000e, 0x0000037e, 0x00000dfe
++};
++
++static const uint8_t icc_lav3_2D_1_0_1_bits[4] = {
++    4, 4, 9, 9
++};
++
++static const uint32_t icc_lav3_2D_1_0_1_codes[4] = {
++    0x0000000f, 0x0000000c, 0x000001ba, 0x000001bb
++};
++
++static const uint8_t icc_lav3_2D_1_0_2_bits[4] = {
++    8, 8, 9, 5
++};
++
++static const uint32_t icc_lav3_2D_1_0_2_codes[4] = {
++    0x000000de, 0x000000dc, 0x000001be, 0x0000001a
++};
++
++static const uint8_t icc_lav3_2D_1_0_3_bits[4] = {
++    11, 12, 6, 1
++};
++
++static const uint32_t icc_lav3_2D_1_0_3_codes[4] = {
++    0x000006fe, 0x00000dff, 0x00000036, 0x00000000
++};
++
++/* icc_lav5_2D_1_0*/
++static const uint8_t icc_lav5_2D_1_0_0_bits[6] = {
++    1, 4, 9, 13, 16, 18
++};
++
++static const uint32_t icc_lav5_2D_1_0_0_codes[6] = {
++    0x00000000, 0x0000000c, 0x000001b6, 0x00001b7c, 0x0000dbfe, 0x00036fff
++};
++
++static const uint8_t icc_lav5_2D_1_0_1_bits[6] = {
++    4, 5, 9, 12, 18, 10
++};
++
++static const uint32_t icc_lav5_2D_1_0_1_codes[6] = {
++    0x0000000e, 0x0000001e, 0x000001be, 0x00000dfe, 0x00036ffe, 0x0000036e
++};
++
++static const uint8_t icc_lav5_2D_1_0_2_bits[6] = {
++    7, 8, 8, 14, 11, 8
++};
++
++static const uint32_t icc_lav5_2D_1_0_2_codes[6] = {
++    0x0000006e, 0x000000fe, 0x000000d8, 0x000036fe, 0x000006de, 0x000000de
++};
++
++static const uint8_t icc_lav5_2D_1_0_3_bits[6] = {
++    9, 8, 12, 13, 8, 8
++};
++
++static const uint32_t icc_lav5_2D_1_0_3_codes[6] = {
++    0x000001fa, 0x000000da, 0x00000dff, 0x00001b7e, 0x000000d9, 0x000000ff
++};
++
++static const uint8_t icc_lav5_2D_1_0_4_bits[6] = {
++    10, 11, 15, 10, 8, 5
++};
++
++static const uint32_t icc_lav5_2D_1_0_4_codes[6] = {
++    0x000003f6, 0x000006fe, 0x00006dfe, 0x0000037e, 0x000000fc, 0x0000001a
++};
++
++static const uint8_t icc_lav5_2D_1_0_5_bits[6] = {
++    11, 17, 13, 11, 6, 2
++};
++
++static const uint32_t icc_lav5_2D_1_0_5_codes[6] = {
++    0x000007ee, 0x0001b7fe, 0x00001b7d, 0x000007ef, 0x0000003e, 0x00000002
++};
++
++/* icc_lav7_2D_1_0*/
++static const uint8_t icc_lav7_2D_1_0_0_bits[8] = {
++    1, 4, 11, 13, 14, 15, 15, 15
++};
++
++static const uint32_t icc_lav7_2D_1_0_0_codes[8] = {
++    0x00000000, 0x0000000c, 0x000007ee, 0x00001e7e, 0x00003cfe, 0x000079ff, 0x000079ff, 0x000079ff
++};
++
++static const uint8_t icc_lav7_2D_1_0_1_bits[8] = {
++    4, 5, 9, 13, 15, 15, 15, 11
++};
++
++static const uint32_t icc_lav7_2D_1_0_1_codes[8] = {
++    0x0000000e, 0x0000001a, 0x000001e6, 0x00001fbe, 0x000079fe, 0x000079ff, 0x000079ff, 0x000006fc
++};
++
++static const uint8_t icc_lav7_2D_1_0_2_bits[8] = {
++    7, 8, 9, 12, 12, 15, 12, 9
++};
++
++static const uint32_t icc_lav7_2D_1_0_2_codes[8] = {
++    0x0000006c, 0x000000f6, 0x000001ba, 0x00000dfc, 0x00000dfd, 0x000079ff, 0x00000f3e, 0x000001bb
++};
++
++static const uint8_t icc_lav7_2D_1_0_3_bits[8] = {
++    8, 9, 10, 10, 15, 12, 9, 8
++};
++
++static const uint32_t icc_lav7_2D_1_0_3_codes[8] = {
++    0x000000dc, 0x000001fe, 0x0000036e, 0x000003fe, 0x000079ff, 0x00000fde, 0x000001ee, 0x000000f2
++};
++
++static const uint8_t icc_lav7_2D_1_0_4_bits[8] = {
++    9, 10, 9, 15, 13, 10, 10, 8
++};
++
++static const uint32_t icc_lav7_2D_1_0_4_codes[8] = {
++    0x000001fa, 0x000003f6, 0x000001be, 0x000079ff, 0x00001fbf, 0x000003ce, 0x000003ff, 0x000000de
++};
++
++static const uint8_t icc_lav7_2D_1_0_5_bits[8] = {
++    7, 8, 15, 15, 11, 10, 9, 8
++};
++
++static const uint32_t icc_lav7_2D_1_0_5_codes[8] = {
++    0x00000078, 0x000000da, 0x000079ff, 0x000079ff, 0x000006fd, 0x0000036c, 0x000001ef, 0x000000fe
++};
++
++static const uint8_t icc_lav7_2D_1_0_6_bits[8] = {
++    10, 12, 15, 15, 15, 10, 8, 6
++};
++
++static const uint32_t icc_lav7_2D_1_0_6_codes[8] = {
++    0x0000036f, 0x00000dfe, 0x000079ff, 0x000079ff, 0x000079ff, 0x0000036d, 0x000000fc, 0x0000003e
++};
++
++static const uint8_t icc_lav7_2D_1_0_7_bits[8] = {
++    12, 15, 15, 15, 15, 11, 7, 2
++};
++
++static const uint32_t icc_lav7_2D_1_0_7_codes[8] = {
++    0x00000dff, 0x000079ff, 0x000079ff, 0x000079ff, 0x000079ff, 0x0000079e, 0x0000007a, 0x00000002
++};
++
++/* icc_lav1_2D_1_1*/
++static const uint8_t icc_lav1_2D_1_1_0_bits[2] = {
++    1, 3
++};
++
++static const uint32_t icc_lav1_2D_1_1_0_codes[2] = {
++    0x00000000, 0x00000006
++};
++
++static const uint8_t icc_lav1_2D_1_1_1_bits[2] = {
++    3, 2
++};
++
++static const uint32_t icc_lav1_2D_1_1_1_codes[2] = {
++    0x00000007, 0x00000002
++};
++
++/* icc_lav3_2D_1_1*/
++static const uint8_t icc_lav3_2D_1_1_0_bits[4] = {
++    2, 4, 8, 12
++};
++
++static const uint32_t icc_lav3_2D_1_1_0_codes[4] = {
++    0x00000002, 0x0000000e, 0x000000fc, 0x00000fde
++};
++
++static const uint8_t icc_lav3_2D_1_1_1_bits[4] = {
++    4, 4, 9, 11
++};
++
++static const uint32_t icc_lav3_2D_1_1_1_codes[4] = {
++    0x0000000c, 0x0000000d, 0x000001fe, 0x000007ee
++};
++
++static const uint8_t icc_lav3_2D_1_1_2_bits[4] = {
++    9, 9, 8, 6
++};
++
++static const uint32_t icc_lav3_2D_1_1_2_codes[4] = {
++    0x000001fa, 0x000001ff, 0x000000fe, 0x0000003e
++};
++
++static const uint8_t icc_lav3_2D_1_1_3_bits[4] = {
++    12, 10, 5, 1
++};
++
++static const uint32_t icc_lav3_2D_1_1_3_codes[4] = {
++    0x00000fdf, 0x000003f6, 0x0000001e, 0x00000000
++};
++
++/* icc_lav5_2D_1_1*/
++static const uint8_t icc_lav5_2D_1_1_0_bits[6] = {
++    2, 4, 7, 11, 13, 16
++};
++
++static const uint32_t icc_lav5_2D_1_1_0_codes[6] = {
++    0x00000000, 0x0000000e, 0x0000003a, 0x00000676, 0x000019fe, 0x0000cebe
++};
++
++static const uint8_t icc_lav5_2D_1_1_1_bits[6] = {
++    4, 3, 6, 9, 13, 15
++};
++
++static const uint32_t icc_lav5_2D_1_1_1_codes[6] = {
++    0x0000000f, 0x00000002, 0x0000001e, 0x000000fe, 0x000019d6, 0x0000675e
++};
++
++static const uint8_t icc_lav5_2D_1_1_2_bits[6] = {
++    7, 6, 5, 10, 12, 11
++};
++
++static const uint32_t icc_lav5_2D_1_1_2_codes[6] = {
++    0x0000003e, 0x00000032, 0x00000018, 0x0000033e, 0x00000cfe, 0x00000677
++};
++
++static const uint8_t icc_lav5_2D_1_1_3_bits[6] = {
++    11, 9, 9, 7, 6, 8
++};
++
++static const uint32_t icc_lav5_2D_1_1_3_codes[6] = {
++    0x00000674, 0x0000019c, 0x000000ff, 0x0000003b, 0x0000001c, 0x0000007e
++};
++
++static const uint8_t icc_lav5_2D_1_1_4_bits[6] = {
++    14, 14, 12, 7, 5, 4
++};
++
++static const uint32_t icc_lav5_2D_1_1_4_codes[6] = {
++    0x000033fe, 0x000033ff, 0x00000cea, 0x00000066, 0x0000001a, 0x00000006
++};
++
++static const uint8_t icc_lav5_2D_1_1_5_bits[6] = {
++    16, 14, 11, 9, 5, 2
++};
++
++static const uint32_t icc_lav5_2D_1_1_5_codes[6] = {
++    0x0000cebf, 0x000033ae, 0x0000067e, 0x0000019e, 0x0000001b, 0x00000002
++};
++
++/* icc_lav7_2D_1_1*/
++static const uint8_t icc_lav7_2D_1_1_0_bits[8] = {
++    2, 4, 9, 12, 13, 13, 15, 16
++};
++
++static const uint32_t icc_lav7_2D_1_1_0_codes[8] = {
++    0x00000002, 0x00000002, 0x000000fe, 0x000007be, 0x00000ffc, 0x00000ffd, 0x00001efe, 0x00003dfe
++};
++
++static const uint8_t icc_lav7_2D_1_1_1_bits[8] = {
++    4, 3, 7, 10, 11, 12, 15, 16
++};
++
++static const uint32_t icc_lav7_2D_1_1_1_codes[8] = {
++    0x00000004, 0x00000000, 0x0000003c, 0x000000f6, 0x000001da, 0x000003fe, 0x00003dfe, 0x00003dff
++};
++
++static const uint8_t icc_lav7_2D_1_1_2_bits[8] = {
++    8, 7, 5, 8, 11, 13, 14, 14
++};
++
++static const uint32_t icc_lav7_2D_1_1_2_codes[8] = {
++    0x0000003c, 0x0000003e, 0x0000000a, 0x0000003a, 0x000003de, 0x000007be, 0x00000f7e, 0x00001efe
++};
++
++static const uint8_t icc_lav7_2D_1_1_3_bits[8] = {
++    11, 10, 9, 5, 10, 13, 12, 15
++};
++
++static const uint32_t icc_lav7_2D_1_1_3_codes[8] = {
++    0x000001de, 0x000000ec, 0x0000007e, 0x0000000c, 0x000001ee, 0x00000f7e, 0x000007fc, 0x00003dff
++};
++
++static const uint8_t icc_lav7_2D_1_1_4_bits[8] = {
++    16, 12, 10, 10, 6, 7, 12, 13
++};
++
++static const uint32_t icc_lav7_2D_1_1_4_codes[8] = {
++    0x00007ffe, 0x000003be, 0x000000fe, 0x000001fe, 0x0000001a, 0x0000001c, 0x000007fd, 0x00000ffe
++};
++
++static const uint8_t icc_lav7_2D_1_1_5_bits[8] = {
++    16, 12, 14, 12, 8, 6, 8, 9
++};
++
++static const uint32_t icc_lav7_2D_1_1_5_codes[8] = {
++    0x00003dff, 0x000003bf, 0x00001ffe, 0x000003ff, 0x0000003e, 0x0000001b, 0x0000007e, 0x000000f6
++};
++
++static const uint8_t icc_lav7_2D_1_1_6_bits[8] = {
++    16, 16, 15, 11, 10, 8, 5, 5
++};
++
++static const uint32_t icc_lav7_2D_1_1_6_codes[8] = {
++    0x00007fff, 0x00003dff, 0x00003ffe, 0x000001db, 0x000000ee, 0x0000007a, 0x0000000e, 0x0000000b
++};
++
++static const uint8_t icc_lav7_2D_1_1_7_bits[8] = {
++    16, 16, 12, 11, 11, 9, 5, 2
++};
++
++static const uint32_t icc_lav7_2D_1_1_7_codes[8] = {
++    0x00003dff, 0x00003dff, 0x000003de, 0x000001fe, 0x000001ee, 0x0000007a, 0x00000006, 0x00000003
++};
++
++#define MATRIX_PAIR1(NAME, X, Y) \
++const uint32_t * const ff_aac_ ## NAME ## _ ## X ## _ ## Y ## _codes[2] = { \
++    NAME ## _ ## X ## _ ## Y ## _0_codes, \
++    NAME ## _ ## X ## _ ## Y ## _1_codes, \
++}; \
++const uint8_t * const ff_aac_ ## NAME ## _ ## X ## _ ## Y ## _bits[2] = { \
++    NAME ## _ ## X ## _ ## Y ## _0_bits, \
++    NAME ## _ ## X ## _ ## Y ## _1_bits, \
++};
++
++#define MATRIX_PAIR3(NAME, X, Y) \
++const uint32_t * const ff_aac_ ## NAME ## _ ## X ## _ ## Y ## _codes[4] = { \
++    NAME ## _ ## X ## _ ## Y ## _0_codes, \
++    NAME ## _ ## X ## _ ## Y ## _1_codes, \
++    NAME ## _ ## X ## _ ## Y ## _2_codes, \
++    NAME ## _ ## X ## _ ## Y ## _3_codes, \
++}; \
++const uint8_t * const ff_aac_ ## NAME ## _ ## X ## _ ## Y ## _bits[4] = { \
++    NAME ## _ ## X ## _ ## Y ## _0_bits, \
++    NAME ## _ ## X ## _ ## Y ## _1_bits, \
++    NAME ## _ ## X ## _ ## Y ## _2_bits, \
++    NAME ## _ ## X ## _ ## Y ## _3_bits, \
++};
++
++#define MATRIX_PAIR5(NAME, X, Y) \
++const uint32_t * const ff_aac_ ## NAME ## _ ## X ## _ ## Y ## _codes[6] = { \
++    NAME ## _ ## X ## _ ## Y ## _0_codes, \
++    NAME ## _ ## X ## _ ## Y ## _1_codes, \
++    NAME ## _ ## X ## _ ## Y ## _2_codes, \
++    NAME ## _ ## X ## _ ## Y ## _3_codes, \
++    NAME ## _ ## X ## _ ## Y ## _4_codes, \
++    NAME ## _ ## X ## _ ## Y ## _5_codes, \
++}; \
++const uint8_t * const ff_aac_ ## NAME ## _ ## X ## _ ## Y ## _bits[6] = { \
++    NAME ## _ ## X ## _ ## Y ## _0_bits, \
++    NAME ## _ ## X ## _ ## Y ## _1_bits, \
++    NAME ## _ ## X ## _ ## Y ## _2_bits, \
++    NAME ## _ ## X ## _ ## Y ## _3_bits, \
++    NAME ## _ ## X ## _ ## Y ## _4_bits, \
++    NAME ## _ ## X ## _ ## Y ## _5_bits, \
++};
++
++#define MATRIX_PAIR7(NAME, X, Y) \
++const uint32_t * const ff_aac_ ## NAME ## _ ## X ## _ ## Y ## _codes[8] = { \
++    NAME ## _ ## X ## _ ## Y ## _0_codes, \
++    NAME ## _ ## X ## _ ## Y ## _1_codes, \
++    NAME ## _ ## X ## _ ## Y ## _2_codes, \
++    NAME ## _ ## X ## _ ## Y ## _3_codes, \
++    NAME ## _ ## X ## _ ## Y ## _4_codes, \
++    NAME ## _ ## X ## _ ## Y ## _5_codes, \
++    NAME ## _ ## X ## _ ## Y ## _6_codes, \
++    NAME ## _ ## X ## _ ## Y ## _7_codes, \
++}; \
++const uint8_t * const ff_aac_ ## NAME ## _ ## X ## _ ## Y ## _bits[8] = { \
++    NAME ## _ ## X ## _ ## Y ## _0_bits, \
++    NAME ## _ ## X ## _ ## Y ## _1_bits, \
++    NAME ## _ ## X ## _ ## Y ## _2_bits, \
++    NAME ## _ ## X ## _ ## Y ## _3_bits, \
++    NAME ## _ ## X ## _ ## Y ## _4_bits, \
++    NAME ## _ ## X ## _ ## Y ## _5_bits, \
++    NAME ## _ ## X ## _ ## Y ## _6_bits, \
++    NAME ## _ ## X ## _ ## Y ## _7_bits, \
++};
++
++#define MATRIX_PAIR9(NAME, X, Y) \
++const uint32_t * const ff_aac ## NAME ## _ ## X ## _ ## Y ## _codes[10] = { \
++    NAME ## _ ## X ## _ ## Y ## _0_codes, \
++    NAME ## _ ## X ## _ ## Y ## _1_codes, \
++    NAME ## _ ## X ## _ ## Y ## _2_codes, \
++    NAME ## _ ## X ## _ ## Y ## _3_codes, \
++    NAME ## _ ## X ## _ ## Y ## _4_codes, \
++    NAME ## _ ## X ## _ ## Y ## _5_codes, \
++    NAME ## _ ## X ## _ ## Y ## _6_codes, \
++    NAME ## _ ## X ## _ ## Y ## _7_codes, \
++    NAME ## _ ## X ## _ ## Y ## _8_codes, \
++    NAME ## _ ## X ## _ ## Y ## _9_codes, \
++}; \
++const uint8_t * const ff_aac ## NAME ## _ ## X ## _ ## Y ## _bits[10] = { \
++    NAME ## _ ## X ## _ ## Y ## _0_bits, \
++    NAME ## _ ## X ## _ ## Y ## _1_bits, \
++    NAME ## _ ## X ## _ ## Y ## _2_bits, \
++    NAME ## _ ## X ## _ ## Y ## _3_bits, \
++    NAME ## _ ## X ## _ ## Y ## _4_bits, \
++    NAME ## _ ## X ## _ ## Y ## _5_bits, \
++    NAME ## _ ## X ## _ ## Y ## _6_bits, \
++    NAME ## _ ## X ## _ ## Y ## _7_bits, \
++    NAME ## _ ## X ## _ ## Y ## _8_bits, \
++    NAME ## _ ## X ## _ ## Y ## _9_bits, \
++};
++
++MATRIX_PAIR3(cld_lav3_2D, 0, 0)
++MATRIX_PAIR3(cld_lav3_2D, 0, 1)
++MATRIX_PAIR3(cld_lav3_2D, 1, 0)
++MATRIX_PAIR3(cld_lav3_2D, 1, 1)
++
++MATRIX_PAIR5(cld_lav5_2D, 0, 0)
++MATRIX_PAIR5(cld_lav5_2D, 0, 1)
++MATRIX_PAIR5(cld_lav5_2D, 1, 0)
++MATRIX_PAIR5(cld_lav5_2D, 1, 1)
++
++MATRIX_PAIR7(cld_lav7_2D, 0, 0)
++MATRIX_PAIR7(cld_lav7_2D, 0, 1)
++MATRIX_PAIR7(cld_lav7_2D, 1, 0)
++MATRIX_PAIR7(cld_lav7_2D, 1, 1)
++
++MATRIX_PAIR7(cld_lav9_2D, 0, 0)
++MATRIX_PAIR7(cld_lav9_2D, 0, 1)
++MATRIX_PAIR7(cld_lav9_2D, 1, 0)
++MATRIX_PAIR7(cld_lav9_2D, 1, 1)
++
++MATRIX_PAIR1(icc_lav1_2D, 0, 0)
++MATRIX_PAIR1(icc_lav1_2D, 0, 1)
++MATRIX_PAIR1(icc_lav1_2D, 1, 0)
++MATRIX_PAIR1(icc_lav1_2D, 1, 1)
++
++MATRIX_PAIR3(icc_lav3_2D, 0, 0)
++MATRIX_PAIR3(icc_lav3_2D, 0, 1)
++MATRIX_PAIR3(icc_lav3_2D, 1, 0)
++MATRIX_PAIR3(icc_lav3_2D, 1, 1)
++
++MATRIX_PAIR5(icc_lav5_2D, 0, 0)
++MATRIX_PAIR5(icc_lav5_2D, 0, 1)
++MATRIX_PAIR5(icc_lav5_2D, 1, 0)
++MATRIX_PAIR5(icc_lav5_2D, 1, 1)
++
++MATRIX_PAIR7(icc_lav7_2D, 0, 0)
++MATRIX_PAIR7(icc_lav7_2D, 0, 1)
++MATRIX_PAIR7(icc_lav7_2D, 1, 0)
++MATRIX_PAIR7(icc_lav7_2D, 1, 1)
+diff --git a/libavcodec/aactab.h b/libavcodec/aactab.h
+index e7dbbf1ecd..c9c5335a1b 100644
+--- a/libavcodec/aactab.h
++++ b/libavcodec/aactab.h
+@@ -124,4 +124,24 @@ extern const int ff_aac_usac_samplerate[32];
+ /* Window type (only long+eight, start/stop/stopstart), sine+sine, kbd+kbd, sine+kbd, kbd+sine */
+ extern const float ff_aac_usac_mdst_filt_cur[4 /* Window */][4 /* Shape */][7];
+ 
++#define TAB_2D(NAME, LEN) \
++    extern const uint32_t * const NAME ## _0_0_codes[LEN]; \
++    extern const uint32_t * const NAME ## _0_1_codes[LEN]; \
++    extern const uint32_t * const NAME ## _1_0_codes[LEN]; \
++    extern const uint32_t * const NAME ## _1_1_codes[LEN]; \
++    extern const uint8_t * const NAME ## _0_0_bits[LEN]; \
++    extern const uint8_t * const NAME ## _0_1_bits[LEN]; \
++    extern const uint8_t * const NAME ## _1_0_bits[LEN]; \
++    extern const uint8_t * const NAME ## _1_1_bits[LEN];
++
++TAB_2D(ff_aac_icc_lav1_2D, 2)
++TAB_2D(ff_aac_icc_lav3_2D, 4)
++TAB_2D(ff_aac_icc_lav5_2D, 6)
++TAB_2D(ff_aac_icc_lav7_2D, 8)
++
++TAB_2D(ff_aac_cld_lav3_2D, 4)
++TAB_2D(ff_aac_cld_lav5_2D, 6)
++TAB_2D(ff_aac_cld_lav7_2D, 8)
++TAB_2D(ff_aac_cld_lav9_2D, 8)
++
+ #endif /* AVCODEC_AACTAB_H */
+-- 
+2.49.0.395.g12beb8f557c
