@@ -63,7 +63,7 @@ rec {
   ffmpeg-full = ffmpeg_7-full;
 
   ffmpeg-custom = mkFFmpeg {
-    version = "7.1.1.20250504";
+    version = "7.1.1.20250524";
     source = fetchgit {
       url = "https://git.ffmpeg.org/ffmpeg.git";
       rev = "56b85b689dcfcf76792860fdf75ae65e2b739e30";

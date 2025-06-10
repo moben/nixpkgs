@@ -558,7 +558,11 @@ stdenv.mkDerivation (
       ]
       ++ [
         (enableFeature buildAvutil "avutil")
+      ]
+      ++ optionals (lib.versionOlder version "7.1.1.20250507") [
         (enableFeature (buildPostproc && withGPL) "postproc")
+      ]
+      ++ [
         (enableFeature buildSwresample "swresample")
         (enableFeature buildSwscale "swscale")
       ]
@@ -957,7 +961,7 @@ stdenv.mkDerivation (
           ++ optional buildAvformat "libavformat"
           ++ optional buildAvresample "libavresample"
           ++ optional buildAvutil "libavutil"
-          ++ optional buildPostproc "libpostproc"
+          ++ optional (buildPostproc && lib.versionOlder version "7.1.1.20250507") "libpostproc"
           ++ optional buildSwresample "libswresample"
           ++ optional buildSwscale "libswscale";
       in
@@ -1028,7 +1032,7 @@ stdenv.mkDerivation (
         ++ optional buildAvformat "libavformat"
         ++ optional buildAvresample "libavresample"
         ++ optional buildAvutil "libavutil"
-        ++ optional buildPostproc "libpostproc"
+        ++ optional (buildPostproc && lib.versionOlder version "7.1.1.20250507") "libpostproc"
         ++ optional buildSwresample "libswresample"
         ++ optional buildSwscale "libswscale";
       platforms = platforms.all;
