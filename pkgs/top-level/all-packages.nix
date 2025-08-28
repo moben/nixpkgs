@@ -5240,6 +5240,7 @@ with pkgs;
     ffmpeg
     ffmpeg-headless
     ffmpeg-full
+    ffmpeg-custom
     ;
 
   fftwSinglePrec = fftw.override { precision = "single"; };

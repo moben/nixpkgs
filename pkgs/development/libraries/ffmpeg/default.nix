@@ -1,5 +1,6 @@
 {
   callPackage,
+  fetchgit,
   darwin,
   cudaPackages,
 }:
@@ -78,4 +79,18 @@ rec {
   ffmpeg = ffmpeg_9;
   ffmpeg-headless = ffmpeg_9-headless;
   ffmpeg-full = ffmpeg_9-full;
+
+  ffmpeg-custom = mkFFmpeg {
+    version = "10.0.1-pre20251228";
+    source = fetchgit {
+      url = "https://git.ffmpeg.org/ffmpeg.git";
+      rev = "9ab2a437a108469e90bbbfb9dd8dc29ece1c806b";
+      hash = "sha256-uC6Thi/96dzoU7E2pm061PLG3es8fUp+VjUwQxs5H0c=";
+    };
+    withUnfree = true;
+
+    # idk, doesn't build
+    # checked 2025-07-27
+    withAmf = false;
+  } "full";
 }
