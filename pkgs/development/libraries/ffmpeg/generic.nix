@@ -458,6 +458,9 @@ stdenv.mkDerivation (
 
     patches =
       [ ]
+      # ++ optionals (lib.versionAtLeast version "10.0.1-pre20250828") [
+      #   ./debug.patch
+      # ]
       ++ optionals (lib.versionOlder version "5") [
         (fetchpatch2 {
           name = "rename_iszero";
@@ -498,7 +501,8 @@ stdenv.mkDerivation (
           hash = "sha256-OLiQHKBNp2p63ZmzBBI4GEGz3WSSP+rMd8ITfZSVRgY=";
         })
       ]
-      ++ optionals (lib.versionAtLeast version "7.1.1") [
+      # ++ optionals (lib.versionAtLeast version "7.1.1") [
+      ++ optionals (lib.versionAtLeast version "7.1.1" && lib.versionOlder version "10.0.1-pre20251228") [
         # Expose a private API for Chromium / Qt WebEngine.
         (fetchpatch2 {
           url = "https://gitlab.archlinux.org/archlinux/packaging/packages/ffmpeg/-/raw/a02c1a15706ea832c0d52a4d66be8fb29499801a/add-av_stream_get_first_dts-for-chromium.patch";
