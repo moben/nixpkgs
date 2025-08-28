@@ -1,0 +1,63 @@
+From b27f8d91e7296d6515ba6801530166a035630d1d Mon Sep 17 00:00:00 2001
+From: Benedikt McMullin <benedikt@mcmullin.de>
+Date: Mon, 4 Aug 2025 18:06:43 +0200
+Subject: [PATCH] debug
+
+---
+ libavcodec/aac/aacdec_lpd.c  |  3 ++-
+ libavcodec/aac/aacdec_usac.c | 11 ++++++++++-
+ 2 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/libavcodec/aac/aacdec_lpd.c b/libavcodec/aac/aacdec_lpd.c
+index 93be7a74d1..f0c7173e60 100644
+--- a/libavcodec/aac/aacdec_lpd.c
++++ b/libavcodec/aac/aacdec_lpd.c
+@@ -93,11 +93,12 @@ static int parse_codebook_idx(GetBitContext *gb, uint32_t *kv,
+ int ff_aac_parse_fac_data(AACUsacElemData *ce, GetBitContext *gb,
+                           int use_gain, int len)
+ {
++    // return 0;
+     int ret;
+     if (use_gain)
+         ce->fac.gain = get_bits(gb, 7);
+ 
+-    if (len/8 > 8)
++    if (len/8 > 16)
+         return AVERROR_PATCHWELCOME;
+ 
+     for (int i = 0; i < len/8; i++) {
+diff --git a/libavcodec/aac/aacdec_usac.c b/libavcodec/aac/aacdec_usac.c
+index ef0c115aa0..b6b9ddb7e4 100644
+--- a/libavcodec/aac/aacdec_usac.c
++++ b/libavcodec/aac/aacdec_usac.c
+@@ -349,8 +349,11 @@ int ff_aac_usac_config_decode(AACDecContext *ac, AVCodecContext *avctx,
+     int map_pos_set = 0;
+     uint8_t layout_map[MAX_ELEM_ID*4][3] = { 0 };
+ 
+-    if (!ac)
++    if (!ac) {
++        av_log(avctx, AV_LOG_ERROR, "    XXX no ac!\n");
++        avpriv_report_missing_feature(avctx, "YYY no ac!");
+         return AVERROR_PATCHWELCOME;
++    }
+ 
+     memset(usac, 0, sizeof(*usac));
+ 
+@@ -1463,8 +1466,14 @@ static int decode_usac_core_coder(AACDecContext *ac, AACUSACConfig *usac,
+             const uint16_t len_8 = usac->core_frame_len / 8;
+             const uint16_t len_16 = usac->core_frame_len / 16;
+             const uint16_t fac_len = ics->window_sequence[0] == EIGHT_SHORT_SEQUENCE ? len_16 : len_8;
++            // const uint16_t fac_len = get_bits1(gb) ? len_8 : len_16;
+             ret = ff_aac_parse_fac_data(ue, gb, 1, fac_len);
+             if (ret < 0)
++                if (ret == AVERROR_PATCHWELCOME) {
++                    av_log(ac->avctx, AV_LOG_ERROR,
++                           "    XXX err fac data | len_8: %u | len_16: %u | fac_len: %u | gb: %u | window: %u \n",
++                           len_8, len_16, fac_len, get_bits1(gb), ics->window_sequence[0]);
++                }
+                 return ret;
+         }
+     }
+-- 
+2.50.1
+
