@@ -76,6 +76,7 @@ python3Packages.buildPythonApplication rec {
 
   optional-dependencies = {
     default = with python3Packages; [
+      bgutil-ytdlp-pot-provider
       brotli
       certifi
       mutagen
