@@ -50,7 +50,7 @@ buildPythonPackage rec {
 
   build-system = [ hatchling ];
 
-  dependencies = [ yt-dlp ];
+  dependencies = [ ];
 
   doCheck = false; # no tests
 
