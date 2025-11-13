@@ -2,6 +2,10 @@
   python3Packages,
   fetchFromGitHub,
   ffmpeg_7,
+  atomicparsley,
+  deno,
+  ffmpeg,
+  rtmpdump,
   lib,
   versionCheckHook,
   writableTmpDirAsHomeHook,
@@ -32,6 +36,7 @@ python3Packages.buildPythonApplication (finalAttrs: {
 
   dependencies = with python3Packages; [
     yt-dlp
+    yt-dlp-ejs
     colorama
     mergedeep
     mediafile
@@ -39,6 +44,7 @@ python3Packages.buildPythonApplication (finalAttrs: {
   ];
 
   makeWrapperArgs = [
+    ''--prefix PATH : "${lib.makeBinPath [deno atomicparsley rtmpdump]}"''
     "--set YTDL_SUB_FFMPEG_PATH ${lib.getExe' ffmpeg_7 "ffmpeg"}"
     "--set YTDL_SUB_FFPROBE_PATH ${lib.getExe' ffmpeg_7 "ffprobe"}"
   ];
