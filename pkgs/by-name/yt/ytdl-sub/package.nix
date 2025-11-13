@@ -38,6 +38,9 @@ python3Packages.buildPythonApplication (finalAttrs: {
     yt-dlp
     yt-dlp-ejs
     colorama
+    curl-cffi
+    cffi
+    secretstorage
     mergedeep
     mediafile
     pyyaml
