@@ -70,6 +70,7 @@ python3Packages.buildPythonApplication (finalAttrs: {
     "test_thumbnail"
     # fails in bwrap nix-portable sandbox
     "test_directory_exists"
+    "test_config_file_working_dir_home_dir"
   ];
 
   disabledTestPaths = [
