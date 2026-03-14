@@ -17,7 +17,15 @@ let
       mkdir -p $out/bin
       makeWrapper ${cfg.package}/bin/gamescope $out/bin/gamescope --inherit-argv0 \
         ${toString wrapperArgs}
-      ln -s ${cfg.package}/bin/gamescopectl $out/bin/gamescopectl
+      makeWrapper ${cfg.package}/bin/gamescopestream $out/bin/gamescopestream --inherit-argv0 \
+        ${toString wrapperArgs}
+      makeWrapper ${cfg.package}/bin/gamescopectl $out/bin/gamescopectl --inherit-argv0 \
+        ${toString wrapperArgs}
+      makeWrapper ${cfg.package}/bin/gamescope-type $out/bin/gamescope-type --inherit-argv0 \
+        ${toString wrapperArgs}
+      makeWrapper ${cfg.package}/bin/gamescopereaper $out/bin/gamescopereaper --inherit-argv0 \
+        ${toString wrapperArgs}
+      # ln -s ${cfg.package}/bin/gamescopectl $out/bin/gamescopectl
     '';
 in
 {
