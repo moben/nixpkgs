@@ -16,21 +16,21 @@
 
 buildPythonPackage rec {
   pname = "bgutil-ytdlp-pot-provider";
-  version = "1.3.1";
+  version = "1.3.2";
   pyproject = true;
 
   src = fetchFromGitHub {
     owner = "Brainicism";
     repo = "bgutil-ytdlp-pot-provider";
     tag = version;
-    hash = "sha256-dhpataQ1HSCRPnm4k3K/NMaQPQdNrx8C4q855l7kbbQ=";
+    hash = "sha256-vlhuw0Ci/xfPgLxjeW7E+Pz9Fo6yeME3cyVRf8NAAPU=";
   };
 
   npmDeps = fetchNpmDeps {
     name = "${pname}-${version}-npm-deps";
     src = src + "/server";
     npmDepsFetcherVersion = 2;
-    hash = "sha256-Qwwi6W+Oeu6ZeLmZP5vEfAKOJyivbULR5mlk7tcVIE8=";
+    hash = "sha256-hpXVvhJm66+ETJdGAbEa/QZ4rxOYBD8RJqSItlNpoOg=";
   };
 
   npmRoot = "server";
@@ -55,6 +55,8 @@ buildPythonPackage rec {
   doCheck = false; # no tests
 
   preBuild = ''
+    cp README.md plugin/
+    cp README.md server/
     cd server
     npx tsc
     npm prune --omit=dev
