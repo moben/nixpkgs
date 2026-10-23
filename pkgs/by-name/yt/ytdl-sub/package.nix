@@ -23,6 +23,10 @@ python3Packages.buildPythonApplication (finalAttrs: {
     hash = "sha256-5G6t78BTm1qT69PpDEH4rs+gABBWycI4MXlZBrZk7vY=";
   };
 
+  patches = [
+    ./ytdl-sub-2026.08.26.post1_yt-dlp-2026.10.21.patch
+  ];
+
   postPatch = ''
     echo '__pypi_version__ = "${finalAttrs.version}"; __local_version__ = "${finalAttrs.version}"' > src/ytdl_sub/__init__.py
   '';
