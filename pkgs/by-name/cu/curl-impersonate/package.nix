@@ -17,7 +17,7 @@
 }:
 stdenv.mkDerivation rec {
   pname = "curl-impersonate";
-  version = "2.1.1";
+  version = "2.3.1";
 
   outputs = [
     "out"
@@ -28,7 +28,7 @@ stdenv.mkDerivation rec {
     owner = "lexiforest";
     repo = "curl-impersonate";
     tag = "v${version}";
-    hash = "sha256-AgC66L0z6cYVqePwc7yO1iO9F/6YD6dTqWKCcCrNLzc=";
+    hash = "sha256-LvGU1/Idz20RTjknTHuaaapJLFj0zZYwtz1xXOVOTpM=";
   };
 
   separateDebugInfo = true;
@@ -85,16 +85,18 @@ stdenv.mkDerivation rec {
       substituteInPlace CMakeLists.txt \
         --replace-fail 'URL "''${ZLIB_URL}"' 'URL "${localDep "zlib-1.3.1.tar.gz"}"' \
         --replace-fail 'URL "''${ZSTD_URL}"' 'URL "${localDep "zstd-1.5.7.tar.gz"}"' \
-        --replace-fail 'URL "''${BROTLI_URL}"' 'URL "${localDep "brotli-1.2.0.tar.gz"}"' \
+        --replace-fail 'URL "''${BROTLI_URL}"' 'URL "${localDep "brotli-1.2.1.tar.gz"}"' \
         --replace-fail 'URL "''${BORINGSSL_URL}"' 'URL "${localDep "boringssl-156c7b75ae9b8c3b3f847acf264f17594c3859fb.zip"}"' \
+        --replace-fail 'URL "''${CARES_URL}"' 'URL "${localDep "cares-1.34.9.tar.gz"}"' \
         --replace-fail 'URL "''${NGHTTP2_URL}"' 'URL "${localDep "nghttp2-1.63.0.tar.bz2"}"' \
         --replace-fail 'URL "''${NGTCP2_URL}"' 'URL "${localDep "ngtcp2-1.20.0.tar.bz2"}"' \
         --replace-fail 'URL "''${NGHTTP3_URL}"' 'URL "${localDep "nghttp3-1.15.0.tar.bz2"}"' \
-        --replace-fail 'URL "''${CURL_URL}"' 'URL "${localDep "curl-8_21_0.tar.gz"}"'
+        --replace-fail 'URL "''${CURL_URL}"' 'URL "${localDep "curl-8_23_0.tar.gz"}"'
 
       substituteInPlace scripts/build-libidn2.sh \
-        --replace-fail '[ -f "$archive" ] || curl -L "$libidn2_url" -o "$archive"' \
-          '[ -f "$archive" ] || cp ${passthru.deps."libidn2-2.3.7.tar.gz"} "$archive"'
+        --replace-fail 'curl -fL --connect-timeout 15 --max-time 120 \
+              "$libidn2_url" -o "$archive"' \
+          'cp ${passthru.deps."libidn2-2.3.7.tar.gz"} "$archive"'
     '';
 
   preConfigure = ''

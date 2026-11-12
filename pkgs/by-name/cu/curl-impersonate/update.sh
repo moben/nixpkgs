@@ -62,7 +62,7 @@ fi
 cmakelists="$(curl -sSL "https://github.com/lexiforest/curl-impersonate/raw/v$version/CMakeLists.txt")"
 buildlibidn2="$(curl -sSL "https://github.com/lexiforest/curl-impersonate/raw/v$version/scripts/build-libidn2.sh")"
 
-libidn2_version="$(echo "$buildlibidn2" | grep -F 'libidn2_version=' | head -n1 | sed -e 's/.*:-\(.*\)}/\1/')"
+libidn2_version="$(echo "$buildlibidn2" | grep -F 'libidn2_version=' | head -n1 | sed -e 's/^libidn2_version="\(.*\)"$/\1/')"
 libidn2_url="https://ftp.gnu.org/gnu/libidn/libidn2-$libidn2_version.tar.gz"
 
 cat >"$(dirname "$pkgpath")"/deps.nix <<EOF
@@ -83,6 +83,11 @@ cat >"$(dirname "$pkgpath")"/deps.nix <<EOF
   "boringssl-$(getcmakevar BORINGSSL_COMMIT "$cmakelists").zip" = fetchurl {
     url = "$(getcmakevar BORINGSSL_URL "$cmakelists")";
     hash = "$(getcmakehash BORINGSSL_URL_HASH "$cmakelists")";
+  };
+
+  "cares-$(getcmakevar CARES_VERSION "$cmakelists").tar.gz" = fetchurl {
+    url = "$(getcmakevar CARES_URL "$cmakelists")";
+    hash = "$(getcmakehash CARES_URL_HASH "$cmakelists")";
   };
 
   "nghttp2-$(getcmakevar NGHTTP2_VERSION "$cmakelists").tar.bz2" = fetchurl {

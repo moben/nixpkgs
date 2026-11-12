@@ -2,19 +2,24 @@
 { fetchurl }:
 
 {
-  "curl-8_21_0.tar.gz" = fetchurl {
-    url = "https://github.com/curl/curl/archive/curl-8_21_0.tar.gz";
-    hash = "sha256-7HU6pvQIo8qfDW1fendBeuzRVE2xPAOuXUQ2Er82c2Q=";
+  "curl-8_23_0.tar.gz" = fetchurl {
+    url = "https://github.com/curl/curl/archive/curl-8_23_0.tar.gz";
+    hash = "sha256-0GBdWIMSTvWuZMbSswfhQXxIKzYlg7V0kf3zfZqZp5I=";
   };
 
-  "brotli-1.2.0.tar.gz" = fetchurl {
-    url = "https://github.com/google/brotli/archive/refs/tags/v1.2.0.tar.gz";
-    hash = "sha256-gWyW6Ojxk7QBUdrX6P83sSIdAZ28ucNc0/rb/mR33+w=";
+  "brotli-1.2.1.tar.gz" = fetchurl {
+    url = "https://github.com/google/brotli/archive/refs/tags/v1.2.1.tar.gz";
+    hash = "sha256-mNNdEaeNxFOuu30Qw3SPP3P/eMgmfA3Gl7hjH2e/fo8=";
   };
 
   "boringssl-156c7b75ae9b8c3b3f847acf264f17594c3859fb.zip" = fetchurl {
     url = "https://github.com/google/boringssl/archive/156c7b75ae9b8c3b3f847acf264f17594c3859fb.zip";
     hash = "sha256-RQ4WmyhGl8bq/lI8t2efQiH74aCZP3c6VmwzsYh2KEQ=";
+  };
+
+  "cares-1.34.9.tar.gz" = fetchurl {
+    url = "https://github.com/c-ares/c-ares/releases/download/v1.34.9/c-ares-1.34.9.tar.gz";
+    hash = "sha256-k2S3ChLrWaBoMPtIjZNX+QEA3/DZiyPqNZOhg9Q+by8=";
   };
 
   "nghttp2-1.63.0.tar.bz2" = fetchurl {
