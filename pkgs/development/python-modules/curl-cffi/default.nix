@@ -11,28 +11,35 @@
   cryptography,
   fastapi,
   httpx,
+  jsonpath-ng,
   litestar,
+  lxml-html-clean,
+  markdownify,
   proxy-py,
+  pytest,
   pytest-asyncio,
   pytest-trio,
   pytestCheckHook,
   python-multipart,
+  readability-lxml,
   rich,
+  trio,
   trustme,
+  typing-extensions,
   uvicorn,
   websockets,
   writableTmpDirAsHomeHook,
 }:
 buildPythonPackage rec {
   pname = "curl-cffi";
-  version = "0.16.3";
+  version = "0.17.0";
   pyproject = true;
 
   src = fetchFromGitHub {
     owner = "lexiforest";
     repo = "curl_cffi";
     tag = "v${version}";
-    hash = "sha256-KagVuHhsHmA5/CY/1y5GLOFXx2ETPud6xk2vn4sG1hI=";
+    hash = "sha256-1QN7gf0WPACxFgjK560M7/TA40+/zsQQ7HBCRdx6BLc=";
   };
 
   patches = [ ./use-system-libs.patch ];
@@ -48,6 +55,11 @@ buildPythonPackage rec {
     cffi
     certifi
     rich
+  ] ++ [
+    readability-lxml
+    markdownify
+    lxml-html-clean
+    jsonpath-ng
   ];
 
   pythonImportsCheck = [ "curl_cffi" ];
@@ -58,13 +70,17 @@ buildPythonPackage rec {
     cryptography
     fastapi
     httpx
+    jsonpath-ng
     litestar
     proxy-py
+    pytest
     pytest-asyncio
     pytest-trio
     pytestCheckHook
     python-multipart
+    trio
     trustme
+    typing-extensions
     uvicorn
     websockets
     writableTmpDirAsHomeHook
